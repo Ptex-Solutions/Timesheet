@@ -13,11 +13,11 @@ async function main() {
   const employeePwd = await bcrypt.hash("Taha@123", ROUNDS);
 
   const manager = await prisma.user.upsert({
-    where: { email: "manager@ptex.com" },
+    where: { email: "himanshu@ptexsolutions.com" },
     update: {},
     create: {
       name: "Operations Manager",
-      email: "manager@ptex.com",
+      email: "himanshu@ptexsolutions.com",
       password: managerPwd,
       role: Role.MANAGER,
       employeeCode: "MGR",
@@ -25,14 +25,14 @@ async function main() {
   });
 
   const taha = await prisma.user.upsert({
-    where: { email: "taha@ptex.com" },
+    where: { email: "tqureshi@ptexsolutions.com" },
     update: {},
     create: {
-      name: "Taha Chougule",
-      email: "taha@ptex.com",
+      name: "Taha Qureshi",
+      email: "tqureshi@ptexsolutions.com",
       password: employeePwd,
       role: Role.EMPLOYEE,
-      employeeCode: "TC",
+      employeeCode: "TQ",
     },
   });
 
@@ -40,7 +40,7 @@ async function main() {
     where: { email: "kv@ptex.com" },
     update: {},
     create: {
-      name: "Karan Verma",
+      name: "Karunakar Verma",
       email: "kv@ptex.com",
       password: employeePwd,
       role: Role.EMPLOYEE,
@@ -52,7 +52,7 @@ async function main() {
     where: { email: "sk@ptex.com" },
     update: {},
     create: {
-      name: "Sanjay Kumar",
+      name: "Shriyansh Kumar",
       email: "sk@ptex.com",
       password: employeePwd,
       role: Role.EMPLOYEE,
@@ -187,8 +187,8 @@ async function main() {
   }
 
   console.log("Seed complete:");
-  console.log(`  Manager: manager@ptex.com / Manager@123 (id ${manager.id})`);
-  console.log(`  Employee: taha@ptex.com / Taha@123 (id ${taha.id})`);
+  console.log(`  Manager: himanshu@ptexsolutions.com / Himanshu@123 (id ${manager.id})`);
+  console.log(`  Employee: tqureshi@ptexsolutions.com / Taha@123 (id ${taha.id})`);
 }
 
 main()

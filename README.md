@@ -64,8 +64,8 @@ Open <http://localhost:3000> and sign in with one of the demo accounts:
 
 | Role     | Email              | Password    |
 |----------|--------------------|-------------|
-| Manager  | manager@ptex.com   | Manager@123 |
-| Employee | taha@ptex.com      | Taha@123    |
+| Manager  | himanshu@ptexsolutions.com   | Manager@123 |
+| Employee | tqureshi@ptexsolutions.com      | Taha@123    |
 
 ---
 

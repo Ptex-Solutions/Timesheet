@@ -49,10 +49,10 @@ export default function LoginPage() {
 
   function fill(role: "manager" | "employee") {
     if (role === "manager") {
-      setEmail("manager@ptex.com");
+      setEmail("himanshu@ptexsolutions.com");
       setPassword("Manager@123");
     } else {
-      setEmail("taha@ptex.com");
+      setEmail("tqureshi@ptexsolutions.com");
       setPassword("Taha@123");
     }
   }
