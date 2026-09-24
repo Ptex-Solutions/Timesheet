@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Lock, RotateCcw, Save, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -73,6 +73,10 @@ export function AccessPanel({
   }, [initialUsers]);
 
   const selected = users.find((u) => u.id === selectedId) ?? users[0] ?? null;
+  // Tracks the currently shown user so async save/reset results for another
+  // user never overwrite this user's draft.
+  const selectedRef = useRef<number | null>(selected?.id ?? null);
+  selectedRef.current = selected?.id ?? null;
 
   // Reset the draft whenever the selected user or their saved state changes.
   const savedKey = selected ? `${selected.id}:${[...selected.effective].sort().join(",")}` : "";
@@ -135,7 +139,7 @@ export function AccessPanel({
 
   function applyResult(userId: number, effective: Permission[], overrides: AccessUser["overrides"]) {
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, effective, overrides } : u)));
-    setDraft(new Set(effective));
+    if (selectedRef.current === userId) setDraft(new Set(effective));
     router.refresh();
   }
 
@@ -236,7 +240,9 @@ export function AccessPanel({
                 <button
                   type="button"
                   onClick={() => setSelectedId(u.id)}
+                  disabled={busy}
                   className={cn(
+                    "disabled:cursor-not-allowed disabled:opacity-60",
                     "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors",
                     active ? "bg-brand-50 ring-1 ring-brand/30" : "hover:bg-slate-50"
                   )}
@@ -333,7 +339,7 @@ export function AccessPanel({
         <CardFooter className="flex-wrap justify-between gap-3">
           <Button
             variant="outline"
-            disabled={!editable || busy}
+            disabled={!editable || busy || (selected.overrides.length === 0 && !dirty)}
             onClick={() => setConfirmReset(true)}
           >
             <RotateCcw className="h-4 w-4" /> Reset to role defaults

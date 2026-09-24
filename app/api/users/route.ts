@@ -26,11 +26,13 @@ class LastSuperAdminError extends Error {
 // requests (MySQL REPEATABLE READ would otherwise let two transactions each
 // see the other's Super Admin still active); the post-update recount then
 // rolls back if no active Super Admin would remain.
+// `atomic` runs unguarded updates in a transaction too (multi-statement writes).
 async function updateUserGuarded<T>(
   guard: boolean,
-  run: (tx: Prisma.TransactionClient) => Promise<T>
+  run: (tx: Prisma.TransactionClient) => Promise<T>,
+  atomic = false
 ): Promise<T | NextResponse> {
-  if (!guard) return run(prisma);
+  if (!guard) return atomic ? prisma.$transaction((tx) => run(tx)) : run(prisma);
   try {
     return await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM User WHERE role = 'SUPER_ADMIN' AND isActive = true FOR UPDATE`;
@@ -131,15 +133,28 @@ export async function PUT(req: NextRequest) {
   const data: any = { ...parsed.data };
   if (data.password) data.password = await bcrypt.hash(data.password, ROUNDS);
   else delete data.password;
-  const updated = await updateUserGuarded(removesSuperAdmin, (tx) =>
-    tx.user.update({
-      where: { id },
-      data,
-      select: { id: true, name: true, email: true, role: true, employeeCode: true, isActive: true },
-    })
+  // A role change clears per-user overrides: they were chosen relative to the
+  // old role's defaults and would otherwise resurface on a later re-promotion.
+  const updated = await updateUserGuarded(
+    removesSuperAdmin,
+    async (tx) => {
+      if (roleChanging) await tx.userPermission.deleteMany({ where: { userId: id } });
+      return tx.user.update({
+        where: { id },
+        data,
+        select: { id: true, name: true, email: true, role: true, employeeCode: true, isActive: true },
+      });
+    },
+    roleChanging
   );
   if (updated instanceof NextResponse) return updated;
-  await audit({ userId: user.id, action: "update", entity: "User", entityId: id });
+  await audit({
+    userId: user.id,
+    action: "update",
+    entity: "User",
+    entityId: id,
+    meta: roleChanging ? { role: { from: targetRole, to: newRole }, permissionsCleared: true } : undefined,
+  });
   return NextResponse.json({ data: updated });
 }
 

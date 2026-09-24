@@ -16,6 +16,8 @@ import {
 
 const bodySchema = z.object({ permissions: z.array(z.string()) });
 
+const MAX_INT_ID = 2147483647; // MySQL signed INT
+
 type Ctx = { params: { userId: string } };
 
 type Target = { id: number; role: Role; current: Set<Permission> };
@@ -29,7 +31,7 @@ async function authorize(
   if (access instanceof NextResponse) return access;
 
   const id = Number(ctx.params.userId);
-  if (!Number.isFinite(id) || !Number.isInteger(id)) {
+  if (!Number.isInteger(id) || id <= 0 || id > MAX_INT_ID) {
     return NextResponse.json({ error: "Invalid user id" }, { status: 400 });
   }
 
@@ -97,6 +99,18 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ error: "Unknown permissions", details: invalid }, { status: 400 });
   }
   const desired = parsed.data.permissions as Permission[];
+
+  // Every non-view action requires its module's view (mirrors the UI rule).
+  const desiredSet = new Set<string>(desired);
+  const missingView = desired
+    .filter((p) => !p.endsWith(".view") && !desiredSet.has(`${p.split(".")[0]}.view`))
+    .map((p) => `${p} requires ${p.split(".")[0]}.view`);
+  if (missingView.length) {
+    return NextResponse.json(
+      { error: missingView.join("; "), details: missingView },
+      { status: 400 }
+    );
+  }
 
   const overrides = diffOverrides(target.role, desired);
   const next = resolvePermissions(target.role, overrides);
