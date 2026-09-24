@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { audit, requireManager } from "@/lib/api-utils";
+import { audit, requirePermission } from "@/lib/api-utils";
 import { sandboxCreateSchema, sandboxEntrySchema } from "@/lib/validations";
 import { dayCount, isoYearWeek, weekLabelForDate, weekdayKey } from "@/lib/utils";
 
 // GET: list distinct sandbox labels with counts
 export async function GET(_req: NextRequest) {
-  const user = await requireManager();
-  if (user instanceof NextResponse) return user;
+  const access = await requirePermission("sandbox.view");
+  if (access instanceof NextResponse) return access;
 
   const grouped = await prisma.sandboxEntry.groupBy({
     by: ["sandboxLabel"],
@@ -30,8 +30,9 @@ export async function GET(_req: NextRequest) {
 
 // POST: clone real timesheets in date range into a new sandbox label
 export async function POST(req: NextRequest) {
-  const user = await requireManager();
-  if (user instanceof NextResponse) return user;
+  const access = await requirePermission("sandbox.edit");
+  if (access instanceof NextResponse) return access;
+  const { user } = access;
 
   const body = await req.json();
   const parsed = sandboxCreateSchema.safeParse(body);
@@ -82,8 +83,9 @@ export async function POST(req: NextRequest) {
 
 // PUT: add or update a single sandbox entry (in-sandbox edit)
 export async function PUT(req: NextRequest) {
-  const user = await requireManager();
-  if (user instanceof NextResponse) return user;
+  const access = await requirePermission("sandbox.edit");
+  if (access instanceof NextResponse) return access;
+  const { user } = access;
   const body = await req.json();
   const id = body?.id ? Number(body.id) : null;
 
@@ -152,8 +154,9 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const user = await requireManager();
-  if (user instanceof NextResponse) return user;
+  const access = await requirePermission("sandbox.delete");
+  if (access instanceof NextResponse) return access;
+  const { user } = access;
   const id = Number(req.nextUrl.searchParams.get("id"));
   const label = req.nextUrl.searchParams.get("label");
 

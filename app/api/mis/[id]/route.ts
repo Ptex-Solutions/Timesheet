@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireManager } from "@/lib/api-utils";
+import { requirePermission } from "@/lib/api-utils";
 import { exportMISToBuffer } from "@/lib/export";
 
 export async function GET(req: NextRequest, ctx: { params: { id: string } }) {
-  const user = await requireManager();
-  if (user instanceof NextResponse) return user;
+  const access = await requirePermission("mis.view");
+  if (access instanceof NextResponse) return access;
   const id = parseInt(ctx.params.id, 10);
   const report = await prisma.mISReport.findUnique({
     where: { id },

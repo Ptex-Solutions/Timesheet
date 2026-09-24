@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { audit, requireManager, requireUser } from "@/lib/api-utils";
+import { audit, requirePermission, requireUser } from "@/lib/api-utils";
 import { clientSchema } from "@/lib/validations";
 
 export async function GET(_req: NextRequest) {
@@ -21,8 +21,9 @@ export async function GET(_req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requireManager();
-  if (user instanceof NextResponse) return user;
+  const access = await requirePermission("clients.edit");
+  if (access instanceof NextResponse) return access;
+  const { user } = access;
   const body = await req.json();
   const parsed = clientSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
@@ -32,8 +33,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const user = await requireManager();
-  if (user instanceof NextResponse) return user;
+  const access = await requirePermission("clients.edit");
+  if (access instanceof NextResponse) return access;
+  const { user } = access;
   const body = await req.json();
   const id = Number(body?.id);
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
@@ -45,8 +47,9 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const user = await requireManager();
-  if (user instanceof NextResponse) return user;
+  const access = await requirePermission("clients.delete");
+  if (access instanceof NextResponse) return access;
+  const { user } = access;
   const id = Number(req.nextUrl.searchParams.get("id"));
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
   await prisma.client.update({ where: { id }, data: { isActive: false } });

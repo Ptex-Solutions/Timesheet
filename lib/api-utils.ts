@@ -46,13 +46,6 @@ export async function requirePermission(
   return access;
 }
 
-/** @deprecated use requirePermission — removed in Task 4 */
-export async function requireManager(): Promise<SessionUser | NextResponse> {
-  const access = await requireStaff();
-  if (access instanceof NextResponse) return access;
-  return access.user;
-}
-
 export function badRequest(message: string, details?: unknown) {
   return NextResponse.json({ error: message, details }, { status: 400 });
 }

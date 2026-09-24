@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireManager } from "@/lib/api-utils";
+import { requirePermission } from "@/lib/api-utils";
 
 export async function GET(_req: NextRequest, ctx: { params: { label: string } }) {
-  const user = await requireManager();
-  if (user instanceof NextResponse) return user;
+  const access = await requirePermission("sandbox.view");
+  if (access instanceof NextResponse) return access;
   const label = decodeURIComponent(ctx.params.label);
 
   const entries = await prisma.sandboxEntry.findMany({

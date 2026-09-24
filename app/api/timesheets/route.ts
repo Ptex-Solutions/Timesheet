@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { audit, requireUser } from "@/lib/api-utils";
+import { audit } from "@/lib/api-utils";
+import { getCurrentAccess } from "@/lib/authz";
 import { timesheetCreateSchema } from "@/lib/validations";
 import { dayCount, isoYearWeek, weekLabelForDate, weekdayKey } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
-  const user = await requireUser();
-  if (user instanceof NextResponse) return user;
+  const access = await getCurrentAccess();
+  if (!access) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user, perms } = access;
 
   const sp = req.nextUrl.searchParams;
   const dateFrom = sp.get("from");
@@ -17,8 +19,8 @@ export async function GET(req: NextRequest) {
 
   const where: any = {};
 
-  // Employees ALWAYS scoped to their own data
-  if (user.role === "EMPLOYEE") {
+  // Without timesheets.view, callers are ALWAYS scoped to their own data
+  if (!perms.has("timesheets.view")) {
     where.userId = user.id;
   } else if (userIdParam) {
     where.userId = parseInt(userIdParam, 10);
@@ -48,8 +50,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await requireUser();
-  if (user instanceof NextResponse) return user;
+  const access = await getCurrentAccess();
+  if (!access) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { user } = access;
 
   const body = await req.json();
   const parsed = timesheetCreateSchema.safeParse(body);
