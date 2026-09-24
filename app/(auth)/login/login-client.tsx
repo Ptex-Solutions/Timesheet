@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { isStaffRole } from "@/lib/permissions";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,7 +36,7 @@ export default function LoginPage() {
       const role = sess?.user?.role;
       const dest = from && from.startsWith("/employee") || from && from.startsWith("/manager")
         ? from
-        : role === "MANAGER"
+        : isStaffRole(role)
         ? "/manager/dashboard"
         : "/employee/dashboard";
       router.push(dest);

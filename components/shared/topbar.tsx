@@ -11,10 +11,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { isStaffRole, ROLE_LABELS, type Role } from "@/lib/permissions";
 
 export function Topbar({ title, subtitle }: { title: string; subtitle?: string }) {
   const { data } = useSession();
   const user = data?.user;
+  const role = (user as any)?.role as Role | undefined;
+  const roleLabel = role && role in ROLE_LABELS ? ROLE_LABELS[role] : (role ?? "");
   const initials =
     (user?.name ?? "")
       .split(" ")
@@ -47,7 +50,7 @@ export function Topbar({ title, subtitle }: { title: string; subtitle?: string }
             <div className="hidden md:block text-left leading-tight">
               <p className="text-xs font-semibold text-navy">{user?.name}</p>
               <p className="text-[10px] uppercase tracking-wider text-slate-400">
-                {(user as any)?.role}
+                {roleLabel}
               </p>
             </div>
             <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
@@ -56,7 +59,7 @@ export function Topbar({ title, subtitle }: { title: string; subtitle?: string }
             <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <a href={(user as any)?.role === "MANAGER" ? "/manager/settings" : "/employee/profile"}>
+              <a href={isStaffRole(role) ? "/manager/settings" : "/employee/profile"}>
                 <UserCircle className="h-4 w-4" /> Profile
               </a>
             </DropdownMenuItem>

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import type { Role } from "@/lib/permissions";
+import { isStaffRole, type Permission, type Role } from "@/lib/permissions";
+import { getCurrentAccess } from "@/lib/authz";
 
 export type SessionUser = {
   id: number;
@@ -19,13 +20,37 @@ export async function requireUser(): Promise<SessionUser | NextResponse> {
   return session.user as SessionUser;
 }
 
-export async function requireManager(): Promise<SessionUser | NextResponse> {
-  const u = await requireUser();
-  if (u instanceof NextResponse) return u;
-  if (u.role !== "MANAGER") {
+export async function requireStaff(): Promise<
+  { user: SessionUser; perms: Set<Permission> } | NextResponse
+> {
+  const access = await getCurrentAccess();
+  if (!access) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!isStaffRole(access.user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  return u;
+  return access;
+}
+
+export async function requirePermission(
+  perm: Permission
+): Promise<{ user: SessionUser; perms: Set<Permission> } | NextResponse> {
+  const access = await getCurrentAccess();
+  if (!access) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!access.perms.has(perm)) {
+    return NextResponse.json({ error: `Forbidden: missing ${perm}` }, { status: 403 });
+  }
+  return access;
+}
+
+/** @deprecated use requirePermission — removed in Task 4 */
+export async function requireManager(): Promise<SessionUser | NextResponse> {
+  const access = await requireStaff();
+  if (access instanceof NextResponse) return access;
+  return access.user;
 }
 
 export function badRequest(message: string, details?: unknown) {

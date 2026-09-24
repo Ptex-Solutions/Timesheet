@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { isStaffRole } from "@/lib/permissions";
 
 const PUBLIC_PATHS = ["/login", "/api/auth", "/_next", "/favicon", "/assets"];
 
@@ -27,7 +28,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  const role = (token as any).role as "EMPLOYEE" | "MANAGER" | undefined;
+  const role = (token as any).role as string | undefined;
 
   // Manager-only zones
   const managerOnly =
@@ -37,9 +38,10 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/api/users") ||
     // pathname.startsWith("/api/clients") ||
     pathname.startsWith("/api/projects") ||
-    pathname.startsWith("/api/tasks");
+    pathname.startsWith("/api/tasks") ||
+    pathname.startsWith("/api/access");
 
-  if (managerOnly && role !== "MANAGER") {
+  if (managerOnly && !isStaffRole(role)) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -48,10 +50,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Employee zone reachable to both, but managers default to manager dashboard
+  // Employee zone reachable to both, but staff default to manager dashboard
   if (pathname === "/" ) {
     const url = req.nextUrl.clone();
-    url.pathname = role === "MANAGER" ? "/manager/dashboard" : "/employee/dashboard";
+    url.pathname = isStaffRole(role) ? "/manager/dashboard" : "/employee/dashboard";
     return NextResponse.redirect(url);
   }
 
@@ -70,5 +72,6 @@ export const config = {
     "/api/clients/:path*",
     "/api/projects/:path*",
     "/api/tasks/:path*",
+    "/api/access/:path*",
   ],
 };
