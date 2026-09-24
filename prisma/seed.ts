@@ -11,6 +11,7 @@ async function main() {
   // ---- Users ----
   const managerPwd = await bcrypt.hash("Manager@123", ROUNDS);
   const employeePwd = await bcrypt.hash("Taha@123", ROUNDS);
+  const adminPwd = await bcrypt.hash("Admin@123", ROUNDS);
 
   const manager = await prisma.user.upsert({
     where: { email: "himanshu@ptexsolutions.com" },
@@ -57,6 +58,30 @@ async function main() {
       password: employeePwd,
       role: Role.EMPLOYEE,
       employeeCode: "SK",
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: "superadmin@ptexsolutions.com" },
+    update: {},
+    create: {
+      name: "Super Admin",
+      email: "superadmin@ptexsolutions.com",
+      password: adminPwd,
+      role: Role.SUPER_ADMIN,
+      employeeCode: "SA",
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: "admin@ptexsolutions.com" },
+    update: {},
+    create: {
+      name: "Administrator",
+      email: "admin@ptexsolutions.com",
+      password: adminPwd,
+      role: Role.ADMIN,
+      employeeCode: "ADM",
     },
   });
 

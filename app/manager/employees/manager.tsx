@@ -19,12 +19,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import type { Role } from "@/lib/permissions";
 
 type Row = {
   id: number;
   name: string;
   email: string;
-  role: "EMPLOYEE" | "MANAGER";
+  role: Role;
   employeeCode: string;
   isActive: boolean;
   createdAt: string;
@@ -128,7 +129,7 @@ export function EmployeesManager({ initial }: { initial: Row[] }) {
 function UserDialog({ user, mode, onClose }: { user?: Row; mode: "create" | "edit"; onClose: () => void }) {
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
-  const [role, setRole] = useState<"EMPLOYEE" | "MANAGER">(user?.role ?? "EMPLOYEE");
+  const [role, setRole] = useState<Role>(user?.role ?? "EMPLOYEE");
   const [employeeCode, setEmployeeCode] = useState(user?.employeeCode ?? "");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -151,6 +152,7 @@ function UserDialog({ user, mode, onClose }: { user?: Row; mode: "create" | "edi
       const r = await fetch("/api/users", {
         method: mode === "edit" ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
+        cache: "no-store", 
         body: JSON.stringify(body),
       });
       const j = await r.json();

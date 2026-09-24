@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { Role } from "@/lib/permissions";
 
 export type SessionUser = {
   id: number;
-  role: "EMPLOYEE" | "MANAGER";
+  role: Role;
   employeeCode: string;
   name?: string | null;
   email?: string | null;

@@ -3,12 +3,13 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { loginSchema } from "@/lib/validations";
+import type { Role } from "@/lib/permissions";
 
 declare module "next-auth" {
   interface Session {
     user: {
       id: number;
-      role: "EMPLOYEE" | "MANAGER";
+      role: Role;
       employeeCode: string;
     } & DefaultSession["user"];
   }
@@ -17,7 +18,7 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     id: number;
-    role: "EMPLOYEE" | "MANAGER";
+    role: Role;
     employeeCode: string;
   }
 }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ROLES } from "@/lib/permissions";
 
 export const loginSchema = z.object({
   email: z.string().email(),
@@ -46,7 +47,7 @@ export const userSchema = z.object({
   name: z.string().min(1).max(120),
   email: z.string().email(),
   password: z.string().min(8).optional(),
-  role: z.enum(["EMPLOYEE", "MANAGER"]),
+  role: z.enum(ROLES),
   employeeCode: z.string().min(1).max(20),
   isActive: z.boolean().optional(),
 });

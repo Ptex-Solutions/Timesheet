@@ -13,6 +13,8 @@ datasource db {
 enum Role {
   EMPLOYEE
   MANAGER
+  ADMIN
+  SUPER_ADMIN
 }
 
 enum TimesheetStatus {
@@ -37,6 +39,7 @@ model User {
   sessions     Session[]
   auditLogs    AuditLog[]
   misReports   MISReport[]  @relation("MISCreator")
+  permissions  UserPermission[]
 }
 
 model Client {
@@ -173,6 +176,19 @@ model MISReport {
 
   @@index([createdById])
   @@index([periodStart, periodEnd])
+}
+
+model UserPermission {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module    String
+  action    String
+  granted   Boolean
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, module, action])
+  @@index([userId])
 }
 
 model Session {
