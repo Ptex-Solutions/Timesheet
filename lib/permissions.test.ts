@@ -47,6 +47,19 @@ test("MODULES catalogue order and contents", () => {
   assert.deepEqual(access.actions, ["view", "edit"]);
 });
 
+test("Permission type distributes per module (compile-time guard)", () => {
+  const valid: Permission = "sandbox.view";
+  assert.equal(valid, "sandbox.view");
+
+  // @ts-expect-error "finalize" is not a sandbox action — Permission must not
+  // be the cross product of every module's key with every module's actions.
+  const invalid1: Permission = "sandbox.finalize";
+  // @ts-expect-error "approve" is not an access action.
+  const invalid2: Permission = "access.approve";
+  void invalid1;
+  void invalid2;
+});
+
 test("isPermission validates catalogue-derived permissions", () => {
   assert.equal(isPermission("timesheets.approve"), true);
   assert.equal(isPermission("access.edit"), true);

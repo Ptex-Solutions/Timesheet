@@ -78,9 +78,14 @@ export const MODULES = [
 
 export type ModuleKey = (typeof MODULES)[number]["key"];
 
-type ModulePermission<M extends (typeof MODULES)[number]> = `${M["key"]}.${M["actions"][number]}`;
+// Mapped type distributes over the MODULES union, so each module's key is
+// paired only with its own actions (not the cross product of every module's
+// key with every other module's actions).
+type ModulePermissionMap = {
+  [M in (typeof MODULES)[number] as M["key"]]: `${M["key"]}.${M["actions"][number]}`;
+};
 
-export type Permission = ModulePermission<(typeof MODULES)[number]>;
+export type Permission = ModulePermissionMap[ModuleKey];
 
 export const ALL_PERMISSIONS: Permission[] = MODULES.flatMap((m) =>
   m.actions.map((a) => `${m.key}.${a}` as Permission)
