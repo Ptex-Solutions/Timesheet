@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isStaffRole, type Permission, type Role } from "@/lib/permissions";
+import { type Permission, type Role } from "@/lib/permissions";
 import { getCurrentAccess } from "@/lib/authz";
 
 export type SessionUser = {
@@ -18,19 +18,6 @@ export async function requireUser(): Promise<SessionUser | NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   return session.user as SessionUser;
-}
-
-export async function requireStaff(): Promise<
-  { user: SessionUser; perms: Set<Permission> } | NextResponse
-> {
-  const access = await getCurrentAccess();
-  if (!access) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  if (!isStaffRole(access.user.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-  return access;
 }
 
 export async function requirePermission(

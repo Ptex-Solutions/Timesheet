@@ -5,8 +5,9 @@ import { Topbar } from "@/components/shared/topbar";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import { RoleBadge } from "@/components/shared/role-badge";
 import { formatDate } from "@/lib/utils";
+import { ROLE_LABELS, type Role } from "@/lib/permissions";
 
 export default async function ProfilePage() {
   const session = await auth();
@@ -27,7 +28,7 @@ export default async function ProfilePage() {
                 <AvatarFallback className="text-2xl">{initials}</AvatarFallback>
               </Avatar>
               <h3 className="font-display font-bold text-xl text-navy mt-4">{me.name}</h3>
-              <Badge variant="brand" className="mt-2">{me.role}</Badge>
+              <RoleBadge role={me.role as Role} className="mt-2" />
               <p className="text-sm text-slate-500 mt-3">Employee Code · <span className="font-mono font-semibold text-slate-700">{me.employeeCode}</span></p>
             </CardContent>
           </Card>
@@ -39,7 +40,7 @@ export default async function ProfilePage() {
             <CardContent className="space-y-4">
               <Field icon={Mail} label="Email" value={me.email} />
               <Field icon={IdCard} label="Employee Code" value={me.employeeCode} mono />
-              <Field icon={ShieldCheck} label="Role" value={me.role} />
+              <Field icon={ShieldCheck} label="Role" value={ROLE_LABELS[me.role as Role]} />
               <Field icon={Calendar} label="Joined" value={formatDate(me.createdAt)} />
             </CardContent>
           </Card>

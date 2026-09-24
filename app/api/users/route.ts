@@ -119,7 +119,12 @@ export async function PUT(req: NextRequest) {
     }
   }
 
+  // Deactivation is the soft-delete of a user, so it needs employees.delete
+  // on top of employees.edit (same as DELETE). Reactivation stays under edit.
   const deactivating = parsed.data.isActive === false;
+  if (deactivating && !access.perms.has("employees.delete")) {
+    return NextResponse.json({ error: "Forbidden: missing employees.delete" }, { status: 403 });
+  }
   if (deactivating && isSelf) {
     return NextResponse.json({ error: "You cannot deactivate yourself" }, { status: 403 });
   }
