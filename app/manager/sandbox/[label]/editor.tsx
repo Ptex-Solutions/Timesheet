@@ -55,10 +55,16 @@ export function SandboxEditor({
   label,
   users,
   clients,
+  canEdit,
+  canDelete,
+  canFinalize,
 }: {
   label: string;
   users: User[];
   clients: Client[];
+  canEdit: boolean;
+  canDelete: boolean;
+  canFinalize: boolean;
 }) {
   const qc = useQueryClient();
   const router = useRouter();
@@ -123,15 +129,21 @@ export function SandboxEditor({
             </TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => setAdding(true)}>
-              <PlusCircle className="h-4 w-4" /> Add row
-            </Button>
-            <Button variant="success" onClick={() => setShowFinalize(true)}>
-              <Save className="h-4 w-4" /> Finalize as MIS
-            </Button>
-            <Button variant="ghost" className="text-red-600 hover:bg-red-50" onClick={purgeAll}>
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            {canEdit && (
+              <Button variant="outline" onClick={() => setAdding(true)}>
+                <PlusCircle className="h-4 w-4" /> Add row
+              </Button>
+            )}
+            {canFinalize && (
+              <Button variant="success" onClick={() => setShowFinalize(true)}>
+                <Save className="h-4 w-4" /> Finalize as MIS
+              </Button>
+            )}
+            {canDelete && (
+              <Button variant="ghost" className="text-red-600 hover:bg-red-50" onClick={purgeAll}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
 
@@ -192,12 +204,16 @@ export function SandboxEditor({
                       </td>
                       <td className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <Button size="icon" variant="ghost" onClick={() => setEditing(e)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => softDelete(e.id)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          {canEdit && (
+                            <Button size="icon" variant="ghost" onClick={() => setEditing(e)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {canDelete && (
+                            <Button size="icon" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => softDelete(e.id)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>

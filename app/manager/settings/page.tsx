@@ -2,6 +2,8 @@ import { Topbar } from "@/components/shared/topbar";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { RoleBadge } from "@/components/shared/role-badge";
+import { ROLES } from "@/lib/permissions";
 import { ShieldCheck, Database, Lock, FileSpreadsheet, Beaker } from "lucide-react";
 
 export default function SettingsPage() {
@@ -34,7 +36,7 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-3 text-sm text-slate-600">
               <Row label="Auth" value="NextAuth.js (JWT, bcrypt)" />
-              <Row label="Roles" value={<><Badge variant="info" className="mr-1">EMPLOYEE</Badge><Badge variant="brand">MANAGER</Badge></>} />
+              <Row label="Roles" value={<>{ROLES.map((r) => <RoleBadge key={r} role={r} className="mr-1 last:mr-0" />)}</>} />
               <Row label="Employee scope" value="Server-side userId filter on every API" />
               <Row label="Audit log" value="Every mutation written to AuditLog" />
             </CardContent>

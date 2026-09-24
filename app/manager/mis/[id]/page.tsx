@@ -1,4 +1,5 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { getCurrentAccess } from "@/lib/authz";
 import Link from "next/link";
 import { ArrowLeft, Download } from "lucide-react";
 import { prisma } from "@/lib/prisma";
@@ -12,6 +13,9 @@ import { formatDate } from "@/lib/utils";
 import { MISCharts } from "./charts";
 
 export default async function MISDetailPage({ params }: { params: { id: string } }) {
+  const access = await getCurrentAccess();
+  if (!access || !access.perms.has("mis.view")) redirect("/manager/dashboard");
+
   const id = parseInt(params.id, 10);
   const report = await prisma.mISReport.findUnique({
     where: { id },

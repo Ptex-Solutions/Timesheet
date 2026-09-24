@@ -1,4 +1,5 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { getCurrentAccess } from "@/lib/authz";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
@@ -12,6 +13,9 @@ import { formatDate } from "@/lib/utils";
 import { ApprovalPanel } from "./approval-panel";
 
 export default async function TimesheetDetailPage({ params }: { params: { id: string } }) {
+  const access = await getCurrentAccess();
+  if (!access || !access.perms.has("timesheets.view")) redirect("/manager/dashboard");
+
   const id = parseInt(params.id, 10);
   const ts = await prisma.timesheet.findUnique({
     where: { id },
@@ -63,7 +67,12 @@ export default async function TimesheetDetailPage({ params }: { params: { id: st
             </CardContent>
           </Card>
 
-          <ApprovalPanel id={ts.id} status={ts.status} />
+          <ApprovalPanel
+            id={ts.id}
+            status={ts.status}
+            canApprove={access.perms.has("timesheets.approve")}
+            canReopen={access.perms.has("timesheets.reopen")}
+          />
         </div>
       </div>
     </>

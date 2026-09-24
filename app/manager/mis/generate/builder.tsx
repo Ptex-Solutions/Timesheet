@@ -31,10 +31,12 @@ export function MISBuilder({
   users,
   clients,
   sandboxes,
+  canFinalize,
 }: {
   users: Array<{ id: number; name: string; employeeCode: string }>;
   clients: Array<{ id: number; clientCode: string; clientName: string }>;
   sandboxes: Array<{ label: string; count: number }>;
+  canFinalize: boolean;
 }) {
   const router = useRouter();
   const [source, setSource] = useState<"timesheets" | "sandbox">("timesheets");
@@ -354,22 +356,24 @@ export function MISBuilder({
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Step 3 · Finalize</CardTitle>
-                <CardDescription>Save this snapshot as a permanent MIS report.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex gap-2">
-                  <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Report title" className="flex-1" />
-                  <Button variant="success" onClick={finalize} disabled={finalizing}>
-                    {finalizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    Finalize MIS
-                  </Button>
-                </div>
-                <p className="text-xs text-slate-500">After finalizing, you can download Excel/PDF from the report page.</p>
-              </CardContent>
-            </Card>
+            {canFinalize && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Step 3 · Finalize</CardTitle>
+                  <CardDescription>Save this snapshot as a permanent MIS report.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex gap-2">
+                    <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Report title" className="flex-1" />
+                    <Button variant="success" onClick={finalize} disabled={finalizing}>
+                      {finalizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      Finalize MIS
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-500">After finalizing, you can download Excel/PDF from the report page.</p>
+                </CardContent>
+              </Card>
+            )}
           </>
         )}
       </div>

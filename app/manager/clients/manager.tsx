@@ -23,7 +23,15 @@ type Task = { id: number; taskId: string; taskName: string; poRef: string | null
 type Project = { id: number; activityId: string; description: string; clientId: number; tasks: Task[] };
 type Client = { id: number; clientCode: string; clientName: string; projects: Project[] };
 
-export function ClientsManager({ initial }: { initial: Client[] }) {
+export function ClientsManager({
+  initial,
+  canEdit,
+  canDelete,
+}: {
+  initial: Client[];
+  canEdit: boolean;
+  canDelete: boolean;
+}) {
   const router = useRouter();
   const [expanded, setExpanded] = useState<Set<number>>(new Set(initial.slice(0, 1).map((c) => c.id)));
   const [clientDialog, setClientDialog] = useState<Client | "new" | null>(null);
@@ -57,11 +65,13 @@ export function ClientsManager({ initial }: { initial: Client[] }) {
 
   return (
     <>
-      <div className="flex justify-end mb-3">
-        <Button onClick={() => setClientDialog("new")}>
-          <PlusCircle className="h-4 w-4" /> Add client
-        </Button>
-      </div>
+      {canEdit && (
+        <div className="flex justify-end mb-3">
+          <Button onClick={() => setClientDialog("new")}>
+            <PlusCircle className="h-4 w-4" /> Add client
+          </Button>
+        </div>
+      )}
 
       <div className="space-y-3">
         {initial.length === 0 && (
@@ -87,23 +97,29 @@ export function ClientsManager({ initial }: { initial: Client[] }) {
                     </div>
                   </div>
                   <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                    <Button size="icon" variant="ghost" onClick={() => setClientDialog(c)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => delClient(c.id)}>
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    {canEdit && (
+                      <Button size="icon" variant="ghost" onClick={() => setClientDialog(c)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    {canDelete && (
+                      <Button size="icon" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => delClient(c.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardHeader>
 
               {isOpen && (
                 <CardContent>
-                  <div className="flex justify-end mb-3">
-                    <Button size="sm" variant="outline" onClick={() => setProjectDialog({ clientId: c.id })}>
-                      <PlusCircle className="h-3.5 w-3.5" /> Add project
-                    </Button>
-                  </div>
+                  {canEdit && (
+                    <div className="flex justify-end mb-3">
+                      <Button size="sm" variant="outline" onClick={() => setProjectDialog({ clientId: c.id })}>
+                        <PlusCircle className="h-3.5 w-3.5" /> Add project
+                      </Button>
+                    </div>
+                  )}
 
                   {c.projects.length === 0 && (
                     <p className="text-sm text-slate-400 text-center py-6">No projects under this client yet.</p>
@@ -118,15 +134,21 @@ export function ClientsManager({ initial }: { initial: Client[] }) {
                             <p className="text-sm font-medium text-navy">{p.description}</p>
                           </div>
                           <div className="flex items-center gap-1">
-                            <Button size="sm" variant="ghost" onClick={() => setTaskDialog({ projectId: p.id })}>
-                              <PlusCircle className="h-3.5 w-3.5" /> Task
-                            </Button>
-                            <Button size="icon" variant="ghost" onClick={() => setProjectDialog({ project: p, clientId: c.id })}>
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => delProject(p.id)}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            {canEdit && (
+                              <>
+                                <Button size="sm" variant="ghost" onClick={() => setTaskDialog({ projectId: p.id })}>
+                                  <PlusCircle className="h-3.5 w-3.5" /> Task
+                                </Button>
+                                <Button size="icon" variant="ghost" onClick={() => setProjectDialog({ project: p, clientId: c.id })}>
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              </>
+                            )}
+                            {canDelete && (
+                              <Button size="icon" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => delProject(p.id)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                           </div>
                         </div>
                         {p.tasks.length > 0 && (
@@ -139,12 +161,16 @@ export function ClientsManager({ initial }: { initial: Client[] }) {
                                   {t.poRef && <span className="text-xs text-slate-400 font-mono ml-2 truncate">{t.poRef}</span>}
                                 </div>
                                 <div className="flex items-center gap-1 shrink-0">
-                                  <Button size="icon" variant="ghost" onClick={() => setTaskDialog({ task: t, projectId: p.id })}>
-                                    <Pencil className="h-3 w-3" />
-                                  </Button>
-                                  <Button size="icon" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => delTask(t.id)}>
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
+                                  {canEdit && (
+                                    <Button size="icon" variant="ghost" onClick={() => setTaskDialog({ task: t, projectId: p.id })}>
+                                      <Pencil className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                  {canDelete && (
+                                    <Button size="icon" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => delTask(t.id)}>
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  )}
                                 </div>
                               </div>
                             ))}

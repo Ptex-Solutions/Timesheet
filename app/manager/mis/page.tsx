@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getCurrentAccess } from "@/lib/authz";
 import { ArrowRight, BarChart3, Download, PlusCircle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Topbar } from "@/components/shared/topbar";
@@ -9,6 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
 
 export default async function MISIndexPage() {
+  const access = await getCurrentAccess();
+  if (!access || !access.perms.has("mis.view")) redirect("/manager/dashboard");
+
   const reports = await prisma.mISReport.findMany({
     orderBy: { createdAt: "desc" },
     include: { createdBy: { select: { id: true, name: true } } },
@@ -23,9 +28,11 @@ export default async function MISIndexPage() {
           title="MIS Reports"
           description="All finalized MIS reports. Generate new ones from timesheets or sandbox sessions."
           actions={
-            <Button asChild>
-              <Link href="/manager/mis/generate"><PlusCircle className="h-4 w-4" /> Generate MIS</Link>
-            </Button>
+            access.perms.has("mis.edit") ? (
+              <Button asChild>
+                <Link href="/manager/mis/generate"><PlusCircle className="h-4 w-4" /> Generate MIS</Link>
+              </Button>
+            ) : undefined
           }
         />
 

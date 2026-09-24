@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, PlusCircle, Trash2, UserPlus, ShieldCheck, ShieldOff } from "lucide-react";
+import { Loader2, Pencil, Trash2, UserPlus, ShieldOff } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import type { Role } from "@/lib/permissions";
+import { RoleBadge } from "@/components/shared/role-badge";
+import { ROLES, ROLE_LABELS, canManageRole, type Role } from "@/lib/permissions";
 
 type Row = {
   id: number;
@@ -31,7 +32,19 @@ type Row = {
   createdAt: string;
 };
 
-export function EmployeesManager({ initial }: { initial: Row[] }) {
+export function EmployeesManager({
+  initial,
+  actorId,
+  actorRole,
+  canEdit,
+  canDelete,
+}: {
+  initial: Row[];
+  actorId: number;
+  actorRole: Role;
+  canEdit: boolean;
+  canDelete: boolean;
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState<Row | null>(null);
   const [creating, setCreating] = useState(false);
@@ -47,11 +60,13 @@ export function EmployeesManager({ initial }: { initial: Row[] }) {
 
   return (
     <>
-      <div className="flex justify-end mb-3">
-        <Button onClick={() => setCreating(true)}>
-          <UserPlus className="h-4 w-4" /> Add employee
-        </Button>
-      </div>
+      {canEdit && (
+        <div className="flex justify-end mb-3">
+          <Button onClick={() => setCreating(true)}>
+            <UserPlus className="h-4 w-4" /> Add employee
+          </Button>
+        </div>
+      )}
 
       <Card>
         <table className="table-clean">
@@ -68,6 +83,10 @@ export function EmployeesManager({ initial }: { initial: Row[] }) {
           <tbody>
             {initial.map((u) => {
               const initials = u.name.split(" ").map((n) => n[0]).slice(0, 2).join("");
+              const isSelf = u.id === actorId;
+              const manageable = canManageRole(actorRole, u.role);
+              const showEdit = canEdit && (isSelf || manageable);
+              const showDeactivate = canDelete && !isSelf && manageable && u.isActive;
               return (
                 <tr key={u.id}>
                   <td>
@@ -83,21 +102,19 @@ export function EmployeesManager({ initial }: { initial: Row[] }) {
                   <td className="text-sm text-slate-600">{u.email}</td>
                   <td><span className="font-mono text-xs">{u.employeeCode}</span></td>
                   <td>
-                    {u.role === "MANAGER" ? (
-                      <Badge variant="brand"><ShieldCheck className="h-3 w-3 mr-1" /> Manager</Badge>
-                    ) : (
-                      <Badge variant="info">Employee</Badge>
-                    )}
+                    <RoleBadge role={u.role} />
                   </td>
                   <td>
                     {u.isActive ? <Badge variant="success">Active</Badge> : <Badge variant="default"><ShieldOff className="h-3 w-3 mr-1" />Inactive</Badge>}
                   </td>
                   <td className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <Button size="icon" variant="ghost" onClick={() => setEditing(u)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      {u.isActive && (
+                      {showEdit && (
+                        <Button size="icon" variant="ghost" onClick={() => setEditing(u)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      {showDeactivate && (
                         <Button size="icon" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => deactivate(u.id)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
@@ -115,6 +132,8 @@ export function EmployeesManager({ initial }: { initial: Row[] }) {
         <UserDialog
           user={editing ?? undefined}
           mode={creating ? "create" : "edit"}
+          actorRole={actorRole}
+          isSelf={!creating && editing?.id === actorId}
           onClose={() => {
             setCreating(false);
             setEditing(null);
@@ -126,7 +145,22 @@ export function EmployeesManager({ initial }: { initial: Row[] }) {
   );
 }
 
-function UserDialog({ user, mode, onClose }: { user?: Row; mode: "create" | "edit"; onClose: () => void }) {
+function UserDialog({
+  user,
+  mode,
+  actorRole,
+  isSelf,
+  onClose,
+}: {
+  user?: Row;
+  mode: "create" | "edit";
+  actorRole: Role;
+  isSelf: boolean;
+  onClose: () => void;
+}) {
+  // Only roles the actor may assign; when editing yourself the select is
+  // disabled, so keep your own role listed so the current value renders.
+  const roleOptions = ROLES.filter((r) => canManageRole(actorRole, r) || (isSelf && r === user?.role));
   const [name, setName] = useState(user?.name ?? "");
   const [email, setEmail] = useState(user?.email ?? "");
   const [role, setRole] = useState<Role>(user?.role ?? "EMPLOYEE");
@@ -194,11 +228,12 @@ function UserDialog({ user, mode, onClose }: { user?: Row; mode: "create" | "edi
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Role</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as any)}>
+              <Select value={role} onValueChange={(v) => setRole(v as Role)} disabled={isSelf}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="EMPLOYEE">Employee</SelectItem>
-                  <SelectItem value="MANAGER">Manager</SelectItem>
+                  {roleOptions.map((r) => (
+                    <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

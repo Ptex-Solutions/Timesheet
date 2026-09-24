@@ -1,9 +1,13 @@
+import { redirect } from "next/navigation";
+import { getCurrentAccess } from "@/lib/authz";
 import { Topbar } from "@/components/shared/topbar";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { NewSandboxForm } from "./form";
 
-export default function NewSandboxPage() {
+export default async function NewSandboxPage() {
+  const access = await getCurrentAccess();
+  if (!access || !access.perms.has("sandbox.edit")) redirect("/manager/dashboard");
   return (
     <>
       <Topbar title="New Sandbox" subtitle="Clone timesheets into a sandbox" />

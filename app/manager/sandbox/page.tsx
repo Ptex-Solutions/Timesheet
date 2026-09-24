@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getCurrentAccess } from "@/lib/authz";
 import { ArrowRight, Beaker, PlusCircle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Topbar } from "@/components/shared/topbar";
@@ -9,6 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
 
 export default async function SandboxIndexPage() {
+  const access = await getCurrentAccess();
+  if (!access || !access.perms.has("sandbox.view")) redirect("/manager/dashboard");
+  const canEdit = access.perms.has("sandbox.edit");
+
   const grouped = await prisma.sandboxEntry.groupBy({
     by: ["sandboxLabel"],
     _count: { id: true },
@@ -33,9 +39,11 @@ export default async function SandboxIndexPage() {
           title="Sandbox Sessions"
           description="Editable copies of timesheet data — invisible to employees. Reassign, add, remove, or adjust entries before finalizing into an MIS report."
           actions={
-            <Button asChild>
-              <Link href="/manager/sandbox/new"><PlusCircle className="h-4 w-4" /> New Sandbox</Link>
-            </Button>
+            canEdit ? (
+              <Button asChild>
+                <Link href="/manager/sandbox/new"><PlusCircle className="h-4 w-4" /> New Sandbox</Link>
+              </Button>
+            ) : undefined
           }
         />
 
@@ -49,9 +57,11 @@ export default async function SandboxIndexPage() {
               <p className="text-sm text-slate-500 mt-1 max-w-md mx-auto">
                 Clone a date range of submitted timesheets into a sandbox label to start editing.
               </p>
-              <Button asChild className="mt-6">
-                <Link href="/manager/sandbox/new"><PlusCircle className="h-4 w-4" /> Create your first sandbox</Link>
-              </Button>
+              {canEdit && (
+                <Button asChild className="mt-6">
+                  <Link href="/manager/sandbox/new"><PlusCircle className="h-4 w-4" /> Create your first sandbox</Link>
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}

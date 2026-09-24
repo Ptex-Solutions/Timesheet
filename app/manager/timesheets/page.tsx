@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getCurrentAccess } from "@/lib/authz";
 import { Download, Filter } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Topbar } from "@/components/shared/topbar";
@@ -18,6 +20,9 @@ type Search = {
 };
 
 export default async function ManagerTimesheetsPage({ searchParams }: { searchParams: Search }) {
+  const access = await getCurrentAccess();
+  if (!access || !access.perms.has("timesheets.view")) redirect("/manager/dashboard");
+
   const where: any = {};
   if (searchParams.status) where.status = searchParams.status;
   if (searchParams.clientId) where.clientId = parseInt(searchParams.clientId, 10);
@@ -49,9 +54,11 @@ export default async function ManagerTimesheetsPage({ searchParams }: { searchPa
           title="All Timesheets"
           description={`${rows.length} entries · ${totalHours.toFixed(2)} hours`}
           actions={
-            <Button variant="outline" asChild>
-              <Link href="/manager/mis/generate"><Download className="h-4 w-4" /> Export to MIS</Link>
-            </Button>
+            access.perms.has("mis.edit") ? (
+              <Button variant="outline" asChild>
+                <Link href="/manager/mis/generate"><Download className="h-4 w-4" /> Export to MIS</Link>
+              </Button>
+            ) : undefined
           }
         />
 
