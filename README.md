@@ -2,12 +2,16 @@
 
 A fully secured, production-grade Timesheet & MIS Management System for **Ptex**, built with **Next.js 14 (App Router) + MySQL + Prisma**.
 
-Two completely isolated portals:
+Two completely isolated portals — `/employee` for employees and `/manager` for staff (Managers, Admins, Super Admins):
 
-| Portal      | Who can access | Capabilities |
-|-------------|----------------|---------------|
-| **Employee** | `EMPLOYEE` role | Submit / view their own timesheets only |
-| **Manager**  | `MANAGER` role  | Full timesheet visibility, sandbox MIS editor, MIS generation, exports |
+| Role            | Portal   | Default capabilities |
+|-----------------|----------|----------------------|
+| **Employee**    | Employee | Submit / view their own timesheets only |
+| **Manager**     | Manager  | Timesheets (view/edit/delete/approve/re-open), sandbox MIS, MIS reports, clients & projects, employees |
+| **Admin**       | Manager  | Everything a Manager has, plus the Access Panel |
+| **Super Admin** | Manager  | Full access; permissions can't be restricted. The last active Super Admin can't be demoted or deactivated |
+
+Manager and Admin permissions can be customised per user from the **Access Panel**.
 
 Employees can never see anything the Manager edits in the sandbox — sandbox data lives in a separate table and is never exposed via the employee API surface.
 
@@ -62,10 +66,12 @@ npm run dev
 
 Open <http://localhost:3000> and sign in with one of the demo accounts:
 
-| Role     | Email              | Password    |
-|----------|--------------------|-------------|
-| Manager  | himanshu@ptexsolutions.com   | Manager@123 |
-| Employee | tqureshi@ptexsolutions.com      | Taha@123    |
+| Role        | Email                        | Password    |
+|-------------|------------------------------|-------------|
+| Super Admin | superadmin@ptexsolutions.com | Admin@123   |
+| Admin       | admin@ptexsolutions.com      | Admin@123   |
+| Manager     | himanshu@ptexsolutions.com   | Manager@123 |
+| Employee    | tqureshi@ptexsolutions.com   | Taha@123    |
 
 ---
 
@@ -86,7 +92,9 @@ lib/
   auth.ts               NextAuth v5 setup
   prisma.ts             Prisma client singleton
   validations.ts        Zod schemas
-  api-utils.ts          requireUser/requireManager + audit
+  permissions.ts        Roles, permission catalogue, role defaults (pure)
+  authz.ts              DB-resolved permissions (getCurrentAccess)
+  api-utils.ts          requirePermission/requireStaff + audit
   mis-engine.ts         MIS aggregation
   export.ts             Excel + PDF export
 middleware.ts           Route protection by role
@@ -112,14 +120,15 @@ prisma/
 - **Sandbox MIS editor** — clone a date range into a named sandbox, then add/modify/soft-delete rows. Diff tab shows added/modified/removed
 - **MIS Generator** — preview by employee, by client, detailed log, and 4 charts (pie, donut, bar by week, bar by employee). Finalize into a permanent MIS report
 - **MIS report viewer** with Excel export matching the original sheet columns
-- **Employee management** — CRUD with role assignment
+- **Employee management** — CRUD with role assignment (you can only manage roles below your own)
+- **Access Panel** — per-user permission matrix (view / edit / delete / approve / re-open / finalize per module) for Managers and Admins, highlighting overrides of role defaults; no one can grant a permission they don't hold
 - **Clients / Projects / Tasks** — collapsible CRUD tree
 - **Settings** — system overview
 
 ### Security
-- All `/manager/*` and sensitive `/api/*` routes blocked by middleware to `MANAGER` only
+- All `/manager/*` and sensitive `/api/*` routes blocked by middleware to staff roles; every route handler additionally checks the specific module permission, resolved fresh from the database on each request
 - Employee API queries always filtered server-side by `userId === session.user.id`
-- Sandbox endpoints are MANAGER-only — sandbox data never reaches employee tokens
+- Sandbox endpoints are staff-only — sandbox data never reaches employee tokens
 - Every mutation writes to the `AuditLog` table
 - Passwords hashed with bcrypt (configurable rounds)
 - Zod validation on all API inputs
@@ -143,6 +152,7 @@ PO Ref. | Mins | SAT | SUN | MON | TUE | WED | THU | FRI | Day Count
 | `npm run dev`            | Start dev server (http://localhost:3000) |
 | `npm run build`          | Generate Prisma client + production build |
 | `npm run start`          | Run the production build           |
+| `npm test`               | Run permission unit tests          |
 | `npm run prisma:push`    | Push schema to MySQL (no migration files) |
 | `npm run prisma:migrate` | Create + apply a migration         |
 | `npm run prisma:seed`    | Seed clients, projects, tasks, users |
