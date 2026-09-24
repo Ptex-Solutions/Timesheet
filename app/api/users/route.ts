@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { audit, requirePermission } from "@/lib/api-utils";
 import { canManageRole, type Role } from "@/lib/permissions";
@@ -10,6 +11,40 @@ const ROUNDS = parseInt(process.env.BCRYPT_ROUNDS ?? "12", 10);
 async function isLastActiveSuperAdmin() {
   const count = await prisma.user.count({ where: { role: "SUPER_ADMIN", isActive: true } });
   return count <= 1;
+}
+
+const LAST_SUPER_ADMIN = "Cannot remove the last active Super Admin";
+
+class LastSuperAdminError extends Error {
+  constructor() {
+    super(LAST_SUPER_ADMIN);
+  }
+}
+
+// Runs a user update atomically with the last-active-Super-Admin invariant.
+// The FOR UPDATE locking read serialises concurrent demote/deactivate
+// requests (MySQL REPEATABLE READ would otherwise let two transactions each
+// see the other's Super Admin still active); the post-update recount then
+// rolls back if no active Super Admin would remain.
+async function updateUserGuarded<T>(
+  guard: boolean,
+  run: (tx: Prisma.TransactionClient) => Promise<T>
+): Promise<T | NextResponse> {
+  if (!guard) return run(prisma);
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM User WHERE role = 'SUPER_ADMIN' AND isActive = true FOR UPDATE`;
+      const result = await run(tx);
+      const remaining = await tx.user.count({ where: { role: "SUPER_ADMIN", isActive: true } });
+      if (remaining === 0) throw new LastSuperAdminError();
+      return result;
+    });
+  } catch (e) {
+    if (e instanceof LastSuperAdminError) {
+      return NextResponse.json({ error: LAST_SUPER_ADMIN }, { status: 400 });
+    }
+    throw e;
+  }
 }
 
 export async function GET(_req: NextRequest) {
@@ -87,23 +122,23 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "You cannot deactivate yourself" }, { status: 403 });
   }
 
-  if (
-    targetRole === "SUPER_ADMIN" &&
-    target.isActive &&
-    (roleChanging || deactivating) &&
-    (await isLastActiveSuperAdmin())
-  ) {
-    return NextResponse.json({ error: "Cannot remove the last active Super Admin" }, { status: 400 });
+  const removesSuperAdmin = targetRole === "SUPER_ADMIN" && target.isActive && (roleChanging || deactivating);
+  // Fast path; the transaction in updateUserGuarded is the real guard.
+  if (removesSuperAdmin && (await isLastActiveSuperAdmin())) {
+    return NextResponse.json({ error: LAST_SUPER_ADMIN }, { status: 400 });
   }
 
   const data: any = { ...parsed.data };
   if (data.password) data.password = await bcrypt.hash(data.password, ROUNDS);
   else delete data.password;
-  const updated = await prisma.user.update({
-    where: { id },
-    data,
-    select: { id: true, name: true, email: true, role: true, employeeCode: true, isActive: true },
-  });
+  const updated = await updateUserGuarded(removesSuperAdmin, (tx) =>
+    tx.user.update({
+      where: { id },
+      data,
+      select: { id: true, name: true, email: true, role: true, employeeCode: true, isActive: true },
+    })
+  );
+  if (updated instanceof NextResponse) return updated;
   await audit({ userId: user.id, action: "update", entity: "User", entityId: id });
   return NextResponse.json({ data: updated });
 }
@@ -124,11 +159,15 @@ export async function DELETE(req: NextRequest) {
   if (!canManageRole(user.role, targetRole)) {
     return NextResponse.json({ error: "You cannot modify a user with this role" }, { status: 403 });
   }
-  if (targetRole === "SUPER_ADMIN" && target.isActive && (await isLastActiveSuperAdmin())) {
-    return NextResponse.json({ error: "Cannot remove the last active Super Admin" }, { status: 400 });
+  const removesSuperAdmin = targetRole === "SUPER_ADMIN" && target.isActive;
+  if (removesSuperAdmin && (await isLastActiveSuperAdmin())) {
+    return NextResponse.json({ error: LAST_SUPER_ADMIN }, { status: 400 });
   }
 
-  await prisma.user.update({ where: { id }, data: { isActive: false } });
+  const result = await updateUserGuarded(removesSuperAdmin, (tx) =>
+    tx.user.update({ where: { id }, data: { isActive: false } })
+  );
+  if (result instanceof NextResponse) return result;
   await audit({ userId: user.id, action: "deactivate", entity: "User", entityId: id });
   return NextResponse.json({ ok: true });
 }
