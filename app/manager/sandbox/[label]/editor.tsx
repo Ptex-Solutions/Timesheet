@@ -40,7 +40,7 @@ type Client = {
   id: number;
   clientCode: string;
   clientName: string;
-  projects: Array<{
+  activities: Array<{
     id: number;
     activityId: string;
     description: string;
@@ -338,14 +338,14 @@ function EntryDialog({
   const [date, setDate] = useState<string>(entry?.date?.slice?.(0, 10) ?? new Date().toISOString().slice(0, 10));
   const [userId, setUserId] = useState<number | null>(entry?.userId ?? null);
   const [clientId, setClientId] = useState<number | null>(entry?.clientId ?? null);
-  const [projectId, setProjectId] = useState<number | null>(entry?.activityId ?? null);
+  const [activitySelId, setActivitySelId] = useState<number | null>(entry?.activityId ?? null);
   const [taskId, setTaskId] = useState<number | null>(entry?.taskId ?? null);
   const [hours, setHours] = useState<number>(Number(entry?.hours ?? 0));
   const [description, setDescription] = useState<string>(entry?.description ?? "");
   // Activity TYPE code of the entry as stored, used to tell a real override
   // apart from the derived value.
   const entryActivityType = entry
-    ? clients.flatMap((c) => c.projects).find((p) => p.id === entry.activityId)?.typeCode
+    ? clients.flatMap((c) => c.activities).find((a) => a.id === entry.activityId)?.typeCode
     : undefined;
   const [type, setType] = useState<string>(
     entry?.type && entry.type !== entryActivityType ? entry.type : FROM_ACTIVITY
@@ -361,13 +361,13 @@ function EntryDialog({
   const [managerNote, setManagerNote] = useState<string>(entry?.managerNote ?? "");
   const [busy, setBusy] = useState(false);
 
-  const projects = clients.find((c) => c.id === clientId)?.projects ?? [];
-  const selectedActivity = projects.find((p) => p.id === projectId);
+  const activities = clients.find((c) => c.id === clientId)?.activities ?? [];
+  const selectedActivity = activities.find((a) => a.id === activitySelId);
   const tasks = selectedActivity?.tasks ?? [];
   const activityType = selectedActivity?.typeCode;
 
   async function save() {
-    if (!userId || !clientId || !projectId || !taskId || hours <= 0 || !description.trim()) {
+    if (!userId || !clientId || !activitySelId || !taskId || hours <= 0 || !description.trim()) {
       toast.error("Fill all fields");
       return;
     }
@@ -375,7 +375,7 @@ function EntryDialog({
     try {
       const body: any = {
         sandboxLabel: label,
-        userId, clientId, activityId: projectId, taskId,
+        userId, clientId, activityId: activitySelId, taskId,
         date, hours, description, managerNote,
       };
       // Only send `type` for an intentional override; otherwise the server
@@ -453,7 +453,7 @@ function EntryDialog({
 
           <div className="space-y-2">
             <Label>Client</Label>
-            <Select value={clientId?.toString() ?? ""} onValueChange={(v) => { setClientId(parseInt(v, 10)); setProjectId(null); setTaskId(null); }}>
+            <Select value={clientId?.toString() ?? ""} onValueChange={(v) => { setClientId(parseInt(v, 10)); setActivitySelId(null); setTaskId(null); }}>
               <SelectTrigger><SelectValue placeholder="Pick client" /></SelectTrigger>
               <SelectContent>
                 {clients.map((c) => (
@@ -467,12 +467,12 @@ function EntryDialog({
 
           <div className="space-y-2">
             <Label>Activity</Label>
-            <Select value={projectId?.toString() ?? ""} onValueChange={(v) => { setProjectId(parseInt(v, 10)); setTaskId(null); }} disabled={!clientId}>
+            <Select value={activitySelId?.toString() ?? ""} onValueChange={(v) => { setActivitySelId(parseInt(v, 10)); setTaskId(null); }} disabled={!clientId}>
               <SelectTrigger><SelectValue placeholder="Pick activity" /></SelectTrigger>
               <SelectContent>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={p.id.toString()}>
-                    <span className="font-mono text-xs mr-2">{p.activityId}</span>{p.description}
+                {activities.map((a) => (
+                  <SelectItem key={a.id} value={a.id.toString()}>
+                    <span className="font-mono text-xs mr-2">{a.activityId}</span>{a.description}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -481,7 +481,7 @@ function EntryDialog({
 
           <div className="space-y-2 col-span-2">
             <Label>Task</Label>
-            <Select value={taskId?.toString() ?? ""} onValueChange={(v) => setTaskId(parseInt(v, 10))} disabled={!projectId}>
+            <Select value={taskId?.toString() ?? ""} onValueChange={(v) => setTaskId(parseInt(v, 10))} disabled={!activitySelId}>
               <SelectTrigger><SelectValue placeholder="Pick task" /></SelectTrigger>
               <SelectContent>
                 {tasks.map((t) => (

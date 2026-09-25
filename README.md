@@ -7,7 +7,7 @@ Two completely isolated portals — `/employee` for employees and `/manager` for
 | Role            | Portal   | Default capabilities |
 |-----------------|----------|----------------------|
 | **Employee**    | Employee | Submit / view their own timesheets only |
-| **Manager**     | Manager  | Timesheets (view/edit/delete/approve/re-open), sandbox MIS, MIS reports, clients & projects, employees |
+| **Manager**     | Manager  | Timesheets (view/edit/delete/approve/re-open), sandbox MIS, MIS reports, masters & activities, employees |
 | **Admin**       | Manager  | Everything a Manager has, plus the Access Panel |
 | **Super Admin** | Manager  | Full access; permissions can't be restricted. The last active Super Admin can't be demoted or deactivated |
 
@@ -55,7 +55,7 @@ BCRYPT_ROUNDS=12
 
 ```bash
 npm run prisma:push     # creates tables in MySQL
-npm run prisma:seed     # seeds clients, projects, tasks, demo users
+npm run prisma:seed     # seeds masters, activities, tasks, demo users
 ```
 
 ### 4. Start the dev server
@@ -90,6 +90,9 @@ components/
   shared/               Sidebar · Topbar · StatCard · PageHeader
   employee/             TimesheetForm · WeeklyGrid
   manager/              HoursChart and other manager components
+app/manager/
+  masters/              Masters admin screen (Type/Client/Product/Version/Module/Cloud-On-Prem CRUD)
+  activities/            Activities admin screen (build an Activity from Masters, nested Task CRUD)
 lib/
   auth.ts               NextAuth v5 setup
   prisma.ts             Prisma client singleton
@@ -124,7 +127,8 @@ prisma/
 - **MIS report viewer** with Excel export matching the original sheet columns
 - **Employee management** — CRUD with role assignment (you can only manage roles below your own)
 - **Access Panel** — per-user permission matrix (view / edit / delete / approve / re-open / finalize per module) for Managers and Admins, highlighting overrides of role defaults; no one can grant a permission they don't hold
-- **Clients / Projects / Tasks** — collapsible CRUD tree
+- **Masters** — generic CODE/Description CRUD for the six master types (Type, Client, Product, Version, Module, Cloud/On Prem)
+- **Activities** — build an Activity by picking Client + Type + Product + Version + Module (+ optional Cloud/On Prem); the Activity ID (`CLIENT.MODULE.TYPE.VERSION.SEQ`) is generated automatically and immutable once created. Collapsible per-activity Task CRUD tree
 - **Settings** — system overview
 
 ### Security
@@ -157,7 +161,7 @@ PO Ref. | Mins | SAT | SUN | MON | TUE | WED | THU | FRI | Day Count
 | `npm test`               | Run permission unit tests          |
 | `npm run prisma:push`    | Push schema to MySQL (no migration files) |
 | `npm run prisma:migrate` | Create + apply a migration         |
-| `npm run prisma:seed`    | Seed clients, projects, tasks, users |
+| `npm run prisma:seed`    | Seed masters, activities, tasks, users |
 | `npm run prisma:studio`  | Open Prisma Studio                 |
 
 ---

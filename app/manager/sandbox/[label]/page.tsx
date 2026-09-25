@@ -36,7 +36,7 @@ export default async function SandboxLabelPage({ params }: { params: { label: st
     id: c.id,
     clientCode: c.code,
     clientName: c.description ?? c.code,
-    projects: c.activitiesAsClient.map((a) => ({
+    activities: c.activitiesAsClient.map((a) => ({
       id: a.id,
       activityId: a.activityId,
       description: a.name,
