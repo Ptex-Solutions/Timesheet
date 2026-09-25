@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MasterType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { audit, badRequest, requirePermission, requireUser } from "@/lib/api-utils";
+import { audit, badRequest, parseId, readJsonBody, requirePermission } from "@/lib/api-utils";
+import { getCurrentAccess } from "@/lib/authz";
 import { activitySchema } from "@/lib/validations";
 import { activityListInclude, createActivity } from "@/lib/activity-service";
 
@@ -10,10 +11,12 @@ const IMMUTABLE_MESSAGE =
   "Client, Type, Product, Version and Module cannot be changed after an Activity is created";
 
 export async function GET(req: NextRequest) {
-  // Any signed-in user (employees need this for timesheet dropdowns);
-  // mutations below stay gated on clients.edit / clients.delete.
-  const user = await requireUser();
-  if (user instanceof NextResponse) return user;
+  // Any signed-in, active user (employees need this for timesheet dropdowns);
+  // mutations below stay gated on clients.edit / clients.delete. Callers
+  // without clients.view only see active activities and active tasks.
+  const access = await getCurrentAccess();
+  if (!access) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const isAdminView = access.perms.has("clients.view");
 
   const clientIdParam = req.nextUrl.searchParams.get("clientId");
   let clientId: number | undefined;
@@ -23,9 +26,14 @@ export async function GET(req: NextRequest) {
   }
 
   const data = await prisma.activity.findMany({
-    where: clientId ? { clientId } : undefined,
+    where: {
+      ...(clientId ? { clientId } : {}),
+      ...(isAdminView ? {} : { isActive: true }),
+    },
     orderBy: { activityId: "asc" },
-    include: activityListInclude,
+    include: isAdminView
+      ? activityListInclude
+      : { ...activityListInclude, tasks: { ...activityListInclude.tasks, where: { isActive: true } } },
   });
   return NextResponse.json({ data });
 }
@@ -35,8 +43,9 @@ export async function POST(req: NextRequest) {
   if (access instanceof NextResponse) return access;
   const { user } = access;
 
-  const body = await req.json();
-  const parsed = activitySchema.safeParse(body);
+  const json = await readJsonBody(req);
+  if (json instanceof NextResponse) return json;
+  const parsed = activitySchema.safeParse(json.body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
   }
@@ -68,9 +77,11 @@ export async function PUT(req: NextRequest) {
   if (access instanceof NextResponse) return access;
   const { user } = access;
 
-  const body = await req.json();
-  const id = Number(body?.id);
-  if (!id) return badRequest("Missing id");
+  const json = await readJsonBody(req);
+  if (json instanceof NextResponse) return json;
+  const body = json.body;
+  const id = parseId(body?.id);
+  if (!id) return badRequest("Missing or invalid id");
 
   const parsed = activitySchema.partial().safeParse(body);
   if (!parsed.success) {
@@ -112,8 +123,8 @@ export async function DELETE(req: NextRequest) {
   if (access instanceof NextResponse) return access;
   const { user } = access;
 
-  const id = Number(req.nextUrl.searchParams.get("id"));
-  if (!id) return badRequest("Missing id");
+  const id = parseId(req.nextUrl.searchParams.get("id"));
+  if (!id) return badRequest("Missing or invalid id");
 
   const existing = await prisma.activity.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });

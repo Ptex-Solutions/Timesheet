@@ -61,3 +61,20 @@ export async function audit(opts: {
     console.error("audit failed", e);
   }
 }
+
+// Parses a JSON request body; malformed JSON becomes a 400 instead of a 500.
+export async function readJsonBody(req: Request): Promise<{ body: any } | NextResponse> {
+  try {
+    return { body: await req.json() };
+  } catch {
+    return badRequest("Invalid JSON");
+  }
+}
+
+// Positive-integer id from a body field or query param; null if invalid.
+export function parseId(v: unknown): number | null {
+  if (typeof v !== "number" && typeof v !== "string") return null;
+  if (typeof v === "string" && v.trim() === "") return null;
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
