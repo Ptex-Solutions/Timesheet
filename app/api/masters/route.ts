@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma, MasterType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { audit, badRequest, requirePermission, requireUser } from "@/lib/api-utils";
+import { audit, badRequest, parseId, readJsonBody, requirePermission } from "@/lib/api-utils";
+import { getCurrentAccess } from "@/lib/authz";
 import { masterSchema, MASTER_TYPES } from "@/lib/validations";
 
 function isValidMasterType(v: unknown): v is MasterType {
@@ -13,10 +14,12 @@ function conflictMessage(type: MasterType, code: string) {
 }
 
 export async function GET(req: NextRequest) {
-  // Any signed-in user (employees need this for timesheet dropdowns);
-  // mutations below stay gated on clients.edit / clients.delete.
-  const user = await requireUser();
-  if (user instanceof NextResponse) return user;
+  // Any signed-in, active user (employees need this for timesheet dropdowns);
+  // mutations below stay gated on clients.edit / clients.delete. Callers
+  // without clients.view only see active masters.
+  const access = await getCurrentAccess();
+  if (!access) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const isAdminView = access.perms.has("clients.view");
 
   const type = req.nextUrl.searchParams.get("type");
   if (!isValidMasterType(type)) {
@@ -24,7 +27,7 @@ export async function GET(req: NextRequest) {
   }
 
   const data = await prisma.master.findMany({
-    where: { type },
+    where: isAdminView ? { type } : { type, isActive: true },
     orderBy: { code: "asc" },
   });
   return NextResponse.json({ data });
@@ -35,8 +38,9 @@ export async function POST(req: NextRequest) {
   if (access instanceof NextResponse) return access;
   const { user } = access;
 
-  const body = await req.json();
-  const parsed = masterSchema.safeParse(body);
+  const json = await readJsonBody(req);
+  if (json instanceof NextResponse) return json;
+  const parsed = masterSchema.safeParse(json.body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
   }
@@ -61,9 +65,11 @@ export async function PUT(req: NextRequest) {
   if (access instanceof NextResponse) return access;
   const { user } = access;
 
-  const body = await req.json();
-  const id = Number(body?.id);
-  if (!id) return badRequest("Missing id");
+  const json = await readJsonBody(req);
+  if (json instanceof NextResponse) return json;
+  const body = json.body;
+  const id = parseId(body?.id);
+  if (!id) return badRequest("Missing or invalid id");
 
   const existing = await prisma.master.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -101,8 +107,8 @@ export async function DELETE(req: NextRequest) {
   if (access instanceof NextResponse) return access;
   const { user } = access;
 
-  const id = Number(req.nextUrl.searchParams.get("id"));
-  if (!id) return badRequest("Missing id");
+  const id = parseId(req.nextUrl.searchParams.get("id"));
+  if (!id) return badRequest("Missing or invalid id");
 
   const existing = await prisma.master.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
