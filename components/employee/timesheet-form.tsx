@@ -45,11 +45,13 @@ export function TimesheetForm({
   const [description, setDescription] = useState<string>(initial?.description ?? "");
   const [submitting, setSubmitting] = useState<"draft" | "submit" | null>(null);
 
-  // Non-staff callers only get active masters / activities / tasks back.
+  // Explicitly request active-only rows so a staff member with clients.view
+  // filling out their own employee timesheet never sees inactive masters /
+  // activities (which would 400 on save).
   const { data: clientsData } = useQuery({
     queryKey: ["masters", "CLIENT"],
     queryFn: async () => {
-      const r = await fetch("/api/masters?type=CLIENT");
+      const r = await fetch("/api/masters?type=CLIENT&active=1");
       const j = await r.json();
       return (j.data ?? []) as ClientMaster[];
     },
@@ -59,7 +61,7 @@ export function TimesheetForm({
     queryKey: ["activities", clientId],
     enabled: clientId != null,
     queryFn: async () => {
-      const r = await fetch(`/api/activities?clientId=${clientId}`);
+      const r = await fetch(`/api/activities?clientId=${clientId}&active=1`);
       const j = await r.json();
       return (j.data ?? []) as Activity[];
     },

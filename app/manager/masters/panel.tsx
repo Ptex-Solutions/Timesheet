@@ -271,7 +271,7 @@ function MasterDialog({
           <DialogDescription>
             {mode === "create"
               ? `Create a new ${TYPE_LABEL[type].toLowerCase()} master.`
-              : "Activities reference this master by id, so the code can be changed safely."}
+              : "If this master is already in use by an Activity or timesheet, its code can't be changed — the server will reject the save."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">

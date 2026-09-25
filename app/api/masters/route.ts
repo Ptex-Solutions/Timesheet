@@ -19,7 +19,11 @@ export async function GET(req: NextRequest) {
   // without clients.view only see active masters.
   const access = await getCurrentAccess();
   if (!access) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const isAdminView = access.perms.has("clients.view");
+  // Callers can force active-only rows regardless of their permission level
+  // (e.g. an employee timesheet form should never surface inactive masters,
+  // even for a staff member with clients.view browsing their own timesheet).
+  const forceActive = req.nextUrl.searchParams.get("active") === "1";
+  const isAdminView = !forceActive && access.perms.has("clients.view");
 
   const type = req.nextUrl.searchParams.get("type");
   if (!isValidMasterType(type)) {
@@ -86,6 +90,35 @@ export async function PUT(req: NextRequest) {
 
   const { type: _ignoredType, ...editable } = parsed.data;
   void _ignoredType;
+
+  // `code` is baked into Activity.activityId (and copied into Timesheet.type
+  // strings via the activity relation) once this master is referenced, so it
+  // can't change after that — mirror the reference check DELETE already does.
+  if (editable.code !== undefined && editable.code !== existing.code) {
+    const [activityRefCount, timesheetCount, sandboxCount] = await Promise.all([
+      prisma.activity.count({
+        where: {
+          OR: [
+            { clientId: id },
+            { typeId: id },
+            { productId: id },
+            { versionId: id },
+            { moduleId: id },
+            { cloudOnPremId: id },
+          ],
+        },
+      }),
+      prisma.timesheet.count({ where: { clientId: id } }),
+      prisma.sandboxEntry.count({ where: { clientId: id } }),
+    ]);
+
+    if (activityRefCount > 0 || timesheetCount > 0 || sandboxCount > 0) {
+      return NextResponse.json(
+        { error: "Cannot change the code of a master that is already in use — create a new one instead." },
+        { status: 400 }
+      );
+    }
+  }
 
   try {
     const updated = await prisma.master.update({ where: { id }, data: editable });

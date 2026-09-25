@@ -17,11 +17,11 @@ npm run prisma:push      # sync schema to DB without migration files (what READM
 npm run prisma:migrate   # create + apply migration (prisma/migrations/)
 npm run prisma:seed      # tsx prisma/seed.ts — masters/activities/tasks + demo users
 npm run prisma:studio
-npm test                 # node:test via tsx — lib/permissions.test.ts
+npm test                 # node:test via tsx — lib/permissions.test.ts + lib/activity-code.test.ts
 npx tsc --noEmit         # typecheck (no separate script)
 ```
 
-Tests use the built-in `node:test` runner (no Jest); only the pure permission logic is covered. No ESLint config is committed. Setup: copy `.env.example` → `.env` (`DATABASE_URL`, `NEXTAUTH_SECRET`/`AUTH_SECRET`, `AUTH_TRUST_HOST`, `BCRYPT_ROUNDS`). Demo logins are listed in README.md.
+Tests use the built-in `node:test` runner (no Jest); coverage is the pure permission logic plus activity-code generation (`lib/activity-code.ts`). No ESLint config is committed. Setup: copy `.env.example` → `.env` (`DATABASE_URL`, `NEXTAUTH_SECRET`/`AUTH_SECRET`, `AUTH_TRUST_HOST`, `BCRYPT_ROUNDS`). Demo logins are listed in README.md.
 
 ## Architecture
 
@@ -31,7 +31,7 @@ Tests use the built-in `node:test` runner (no Jest); only the pure permission lo
 - **Permission catalogue**: `lib/permissions.ts` — pure and edge-safe (no prisma/next imports; used by middleware, routes, server and client components). `MODULES` lists each module's actions (`view`/`edit`/`delete` plus specials `timesheets.approve`, `timesheets.reopen`, `mis.finalize`); `Permission` is the `"module.action"` union.
 - **Effective permissions** = `roleDefaults(role)` + per-user overrides in `UserPermission { userId, module, action, granted }` (`resolvePermissions`). MANAGER defaults = everything except `access.*`; ADMIN/SUPER_ADMIN = everything. SUPER_ADMIN and EMPLOYEE ignore overrides. `diffOverrides(role, desired)` computes the minimal override rows for a desired set. Changing a user's role (`PUT /api/users`) deletes their overrides in the same transaction.
 - **Resolved from the DB on every request**, never from the JWT (the JWT only carries `role` for middleware), so Access Panel changes apply immediately:
-  1. **`middleware.ts`** gates coarsely by role: staff-only paths (`/manager`, `/api/sandbox`, `/api/mis`, `/api/users`, `/api/tasks`, `/api/access`). Update both that list and `matcher` when adding a protected route. `/api/masters` and `/api/activities` are intentionally not staff-only — employees need them to populate the Client → Activity → Task cascade on the timesheet form; each handler still filters to `isActive: true` rows for non-staff callers.
+  1. **`middleware.ts`** gates coarsely by role: staff-only paths (`/manager`, `/api/sandbox`, `/api/mis`, `/api/users`, `/api/tasks`, `/api/access`). Update both that list and `matcher` when adding a protected route. `/api/masters` and `/api/activities` are intentionally not staff-only — employees need them to populate the Client → Activity → Task cascade on the timesheet form; each handler filters to `isActive: true` rows unless the caller has `clients.view`, or explicitly requests active-only via the `?active=1` query param (used by the employee timesheet form so a staff member with `clients.view` doesn't see inactive rows while filling out their own timesheet).
   2. **Route handlers** call `requirePermission("module.action")` from `lib/api-utils.ts`, which returns `{ user, perms }` or a `NextResponse` — `const a = await requirePermission(...); if (a instanceof NextResponse) return a;`. `getCurrentAccess`/`requirePermission` re-read the user from the DB and reject deactivated users. `requireUser()` is JWT-only (returns the session user without a DB check) and is used only for dropdown-data GETs.
   3. **Pages/layouts** call `getCurrentAccess()` (`lib/authz.ts`) and `redirect("/manager/dashboard")` when the page's `*.view` permission is missing. `app/manager/layout.tsx` passes `perms` to `components/shared/manager-shell.tsx`, whose `ITEMS` list gates each nav link on a permission; pages pass booleans like `canEdit` down to client components to hide actions.
 - **Role vs permission changes**: permission (override) changes take effect on the next request. A **role** change only reaches `middleware.ts` after the user re-logs in, because the JWT carries `role` (route handlers and pages already use the DB role).

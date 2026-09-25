@@ -16,7 +16,11 @@ export async function GET(req: NextRequest) {
   // without clients.view only see active activities and active tasks.
   const access = await getCurrentAccess();
   if (!access) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const isAdminView = access.perms.has("clients.view");
+  // Callers can force active-only rows regardless of their permission level
+  // (e.g. an employee timesheet form should never surface inactive activities,
+  // even for a staff member with clients.view browsing their own timesheet).
+  const forceActive = req.nextUrl.searchParams.get("active") === "1";
+  const isAdminView = !forceActive && access.perms.has("clients.view");
 
   const clientIdParam = req.nextUrl.searchParams.get("clientId");
   let clientId: number | undefined;

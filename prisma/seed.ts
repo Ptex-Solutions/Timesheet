@@ -117,7 +117,7 @@ async function main() {
       { code: "CORE", description: "Core" },
       { code: "RPT", description: "Reporting" },
     ],
-    CLOUD_ON_PREM: [{ code: "Cloud" }, { code: "On-Prem" }],
+    CLOUD_ON_PREM: [{ code: "CLOUD" }, { code: "ON-PREM" }],
   };
 
   // masters[type][code] -> Master.id
@@ -164,7 +164,7 @@ async function main() {
       product: "SUM",
       version: "1.0",
       module: "ALL",
-      cloudOnPrem: "Cloud",
+      cloudOnPrem: "CLOUD",
       tasks: [
         { taskId: "DEV", taskName: "SUMM Cloud - Development", poRef: "STC/SOW/08OCT2025/01" },
         { taskId: "R&D", taskName: "SUMM Cloud - Feasibility Study and Documentation", poRef: null },
@@ -177,7 +177,7 @@ async function main() {
       product: "SUM",
       version: "8.0",
       module: "ALL",
-      cloudOnPrem: "On-Prem",
+      cloudOnPrem: "ON-PREM",
       tasks: [
         { taskId: "SUP", taskName: "SUMM8-Support-Functional-Internal", poRef: "STC/SOW/10FEB2026/04" },
       ],
@@ -189,7 +189,7 @@ async function main() {
       product: "PORTAL",
       version: "2.0",
       module: "CORE",
-      cloudOnPrem: "Cloud",
+      cloudOnPrem: "CLOUD",
       tasks: [{ taskId: "SOW", taskName: "Configure Application", poRef: "ESN/SOW/20DEC2023/04" }],
     },
     {
