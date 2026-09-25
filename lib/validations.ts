@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MasterType } from "@prisma/client";
 import { ROLES } from "@/lib/permissions";
 
 export const loginSchema = z.object({
@@ -21,10 +22,10 @@ export const timesheetUpdateSchema = timesheetCreateSchema.partial().extend({
   rejectionNote: z.string().max(2000).optional().nullable(),
 });
 
-export const MASTER_TYPES = ["TYPE", "CLIENT", "PRODUCT", "VERSION", "MODULE", "CLOUD_ON_PREM"] as const;
+export const MASTER_TYPES = Object.values(MasterType) as [MasterType, ...MasterType[]];
 
 export const masterSchema = z.object({
-  type: z.enum(MASTER_TYPES),
+  type: z.nativeEnum(MasterType),
   code: z.string().min(1).max(40),
   description: z.string().max(200).optional().nullable(),
   isActive: z.boolean().optional(),

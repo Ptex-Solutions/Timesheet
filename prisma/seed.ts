@@ -1,5 +1,6 @@
 import { MasterType, PrismaClient, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { createActivity } from "../lib/activity-service";
 
 const prisma = new PrismaClient();
 
@@ -126,7 +127,7 @@ async function main() {
     for (const m of masterSpecs[type]) {
       const row = await prisma.master.upsert({
         where: { type_code: { type: MasterType[type], code: m.code } },
-        update: { description: m.description ?? null },
+        update: {},
         create: { type: MasterType[type], code: m.code, description: m.description ?? null },
       });
       masters[type][m.code] = row.id;
@@ -141,8 +142,11 @@ async function main() {
   });
 
   // ---- Activities + Tasks ----
-  // Seed writes seq/activityId directly (the allocating service arrives in Task 2).
-  // Format: CLIENT.MODULE.TYPE.VERSION.SEQ, e.g. STC.ALL.CR.1.0.4390
+  // Created via lib/activity-service.ts's createActivity, which allocates the
+  // real global sequence and builds activityId (e.g. STC.ALL.CR.1.0.4390).
+  // Only seeded on the very first run (idempotent re-run just skips this
+  // block — seq allocation is one-shot and can't be "found or created" the
+  // way upserts elsewhere in this file can).
   const activitySpecs: {
     name: string;
     client: string;
@@ -202,39 +206,35 @@ async function main() {
     },
   ];
 
-  let nextSeq = 4390;
-  for (const a of activitySpecs) {
-    const seq = nextSeq++;
-    const activityId = `${a.client}.${a.module}.${a.type}.${a.version}.${seq}`;
-    const existing = await prisma.activity.findUnique({ where: { activityId } });
-    if (existing) continue; // idempotent re-run
-    await prisma.activity.create({
-      data: {
-        activityId,
-        seq,
-        name: a.name,
-        clientId: masters.CLIENT[a.client],
-        typeId: masters.TYPE[a.type],
-        productId: masters.PRODUCT[a.product],
-        versionId: masters.VERSION[a.version],
-        moduleId: masters.MODULE[a.module],
-        cloudOnPremId: a.cloudOnPrem ? masters.CLOUD_ON_PREM[a.cloudOnPrem] : null,
-        tasks: {
-          create: a.tasks.map((t) => ({
+  const activityCount = await prisma.activity.count();
+  if (activityCount === 0) {
+    for (const a of activitySpecs) {
+      await prisma.$transaction(async (tx) => {
+        const activity = await createActivity(
+          {
+            name: a.name,
+            clientId: masters.CLIENT[a.client],
+            typeId: masters.TYPE[a.type],
+            productId: masters.PRODUCT[a.product],
+            versionId: masters.VERSION[a.version],
+            moduleId: masters.MODULE[a.module],
+            cloudOnPremId: a.cloudOnPrem ? masters.CLOUD_ON_PREM[a.cloudOnPrem] : null,
+          },
+          tx
+        );
+        await tx.task.createMany({
+          data: a.tasks.map((t) => ({
             taskId: t.taskId,
             taskName: t.taskName,
             poRef: t.poRef,
+            activityId: activity.id,
           })),
-        },
-      },
-    });
+        });
+      });
+    }
+  } else {
+    console.log(`  Skipping activity seed (already ${activityCount} activities present).`);
   }
-
-  // Keep the sequence ahead of anything the seed hand-assigned.
-  await prisma.activitySequence.updateMany({
-    where: { id: 1, current: { lt: nextSeq - 1 } },
-    data: { current: nextSeq - 1 },
-  });
 
   console.log("Seed complete:");
   console.log(`  Manager: himanshu@ptexsolutions.com / Himanshu@123 (id ${manager.id})`);
