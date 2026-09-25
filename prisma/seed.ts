@@ -1,4 +1,4 @@
-import { PrismaClient, Role } from "@prisma/client";
+import { MasterType, PrismaClient, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -85,131 +85,156 @@ async function main() {
     },
   });
 
-  // ---- Clients ----
-  const clientSpecs = [
-    { code: "STC", name: "STC Group" },
-    { code: "INT", name: "Internal" },
-    { code: "ESN", name: "Essilor Networks" },
-    { code: "FRL", name: "Future Retail Ltd" },
-    { code: "LTP", name: "LTP Holdings" },
-    { code: "FKG", name: "FKG Industries" },
-    { code: "VSI", name: "VSI Solutions" },
-    { code: "ADI", name: "ADI Systems" },
-    { code: "IDLE", name: "Idle / Unbilled" },
-  ];
+  // ---- Masters ----
+  type MasterTypeKey = "TYPE" | "CLIENT" | "PRODUCT" | "VERSION" | "MODULE" | "CLOUD_ON_PREM";
+  const masterSpecs: Record<MasterTypeKey, { code: string; description?: string }[]> = {
+    TYPE: [
+      { code: "CR", description: "Change Request" },
+      { code: "BAU", description: "Business as Usual" },
+      { code: "ENH", description: "Enhancement" },
+      { code: "SUP", description: "Support" },
+    ],
+    CLIENT: [
+      { code: "STC", description: "STC Group" },
+      { code: "INT", description: "Internal" },
+      { code: "ESN", description: "Essilor Networks" },
+      { code: "FRL", description: "Future Retail Ltd" },
+      { code: "LTP", description: "LTP Holdings" },
+      { code: "FKG", description: "FKG Industries" },
+      { code: "VSI", description: "VSI Solutions" },
+      { code: "ADI", description: "ADI Systems" },
+      { code: "IDLE", description: "Idle / Unbilled" },
+    ],
+    PRODUCT: [
+      { code: "SUM", description: "Summit" },
+      { code: "COR", description: "Core Platform" },
+      { code: "PORTAL", description: "Client Portal" },
+    ],
+    VERSION: [{ code: "1.0" }, { code: "2.0" }, { code: "8.0" }, { code: "NA" }],
+    MODULE: [
+      { code: "ALL", description: "All Modules" },
+      { code: "CORE", description: "Core" },
+      { code: "RPT", description: "Reporting" },
+    ],
+    CLOUD_ON_PREM: [{ code: "Cloud" }, { code: "On-Prem" }],
+  };
 
-  const clients: Record<string, number> = {};
-  for (const c of clientSpecs) {
-    const row = await prisma.client.upsert({
-      where: { clientCode: c.code },
-      update: { clientName: c.name },
-      create: { clientCode: c.code, clientName: c.name },
-    });
-    clients[c.code] = row.id;
-  }
-
-  // ---- Projects ----
-  const projectSpecs = [
-    {
-      activityId: "STC.ALL.LNG.2.0.4375",
-      description: "Timeline-Support-Technical",
-      client: "STC",
-    },
-    {
-      activityId: "STC.ALL.LNG.8.0.4377",
-      description: "SUMM Cloud / SUMM8",
-      client: "STC",
-    },
-    {
-      activityId: "INT.ALL.BCH.NA.101",
-      description: "Internal",
-      client: "INT",
-    },
-    {
-      activityId: "ESN.ALL.IMP.CLD.4322",
-      description: "Configure Application",
-      client: "ESN",
-    },
-  ];
-
-  const projects: Record<string, number> = {};
-  for (const p of projectSpecs) {
-    const row = await prisma.project.upsert({
-      where: { activityId: p.activityId },
-      update: { description: p.description },
-      create: {
-        activityId: p.activityId,
-        description: p.description,
-        clientId: clients[p.client],
-      },
-    });
-    projects[p.activityId] = row.id;
-  }
-
-  // ---- Tasks ----
-  const taskSpecs = [
-    {
-      taskId: "SUP",
-      taskName: "Timeline-Support-Technical-Bug and Maintenance",
-      poRef: "STC/SOW/08OCT2025/01",
-      activityId: "STC.ALL.LNG.2.0.4375",
-    },
-    {
-      taskId: "R&D",
-      taskName: "SUMM Cloud - Feasibility Study and Documentation",
-      poRef: null,
-      activityId: "STC.ALL.LNG.8.0.4377",
-    },
-    {
-      taskId: "MTG",
-      taskName: "SUMM8-Support-Functional-Internal",
-      poRef: "STC/SOW/10FEB2026/04",
-      activityId: "STC.ALL.LNG.8.0.4377",
-    },
-    {
-      taskId: "SOW",
-      taskName: "Configure Application",
-      poRef: "ESN/SOW/20DEC2023/04",
-      activityId: "ESN.ALL.IMP.CLD.4322",
-    },
-    {
-      taskId: "Internal",
-      taskName: "Internal",
-      poRef: null,
-      activityId: "INT.ALL.BCH.NA.101",
-    },
-    {
-      taskId: "Yoga",
-      taskName: "Yoga",
-      poRef: null,
-      activityId: "INT.ALL.BCH.NA.101",
-    },
-  ];
-
-  for (const t of taskSpecs) {
-    const projectId = projects[t.activityId];
-    const existing = await prisma.task.findFirst({
-      where: { taskId: t.taskId, projectId },
-    });
-    if (!existing) {
-      await prisma.task.create({
-        data: {
-          taskId: t.taskId,
-          taskName: t.taskName,
-          poRef: t.poRef ?? undefined,
-          projectId,
-        },
+  // masters[type][code] -> Master.id
+  const masters = {} as Record<MasterTypeKey, Record<string, number>>;
+  for (const type of Object.keys(masterSpecs) as MasterTypeKey[]) {
+    masters[type] = {};
+    for (const m of masterSpecs[type]) {
+      const row = await prisma.master.upsert({
+        where: { type_code: { type: MasterType[type], code: m.code } },
+        update: { description: m.description ?? null },
+        create: { type: MasterType[type], code: m.code, description: m.description ?? null },
       });
-    } else {
-      await prisma.task.update({
-        where: { id: existing.id },
-        data: {
-          taskName: t.taskName,
-          poRef: t.poRef ?? undefined,
-        },
-      });
+      masters[type][m.code] = row.id;
     }
   }
+
+  // ---- Activity sequence (singleton; never reset if it already exists) ----
+  await prisma.activitySequence.upsert({
+    where: { id: 1 },
+    update: {},
+    create: { id: 1, current: 4389 },
+  });
+
+  // ---- Activities + Tasks ----
+  // Seed writes seq/activityId directly (the allocating service arrives in Task 2).
+  // Format: CLIENT.MODULE.TYPE.VERSION.SEQ, e.g. STC.ALL.CR.1.0.4390
+  const activitySpecs: {
+    name: string;
+    client: string;
+    type: string;
+    product: string;
+    version: string;
+    module: string;
+    cloudOnPrem?: string;
+    tasks: { taskId: string; taskName: string; poRef: string | null }[];
+  }[] = [
+    {
+      name: "SUMM Cloud Development",
+      client: "STC",
+      type: "CR",
+      product: "SUM",
+      version: "1.0",
+      module: "ALL",
+      cloudOnPrem: "Cloud",
+      tasks: [
+        { taskId: "DEV", taskName: "SUMM Cloud - Development", poRef: "STC/SOW/08OCT2025/01" },
+        { taskId: "R&D", taskName: "SUMM Cloud - Feasibility Study and Documentation", poRef: null },
+      ],
+    },
+    {
+      name: "SUMM8 Support",
+      client: "STC",
+      type: "SUP",
+      product: "SUM",
+      version: "8.0",
+      module: "ALL",
+      cloudOnPrem: "On-Prem",
+      tasks: [
+        { taskId: "SUP", taskName: "SUMM8-Support-Functional-Internal", poRef: "STC/SOW/10FEB2026/04" },
+      ],
+    },
+    {
+      name: "Configure Application",
+      client: "ESN",
+      type: "ENH",
+      product: "PORTAL",
+      version: "2.0",
+      module: "CORE",
+      cloudOnPrem: "Cloud",
+      tasks: [{ taskId: "SOW", taskName: "Configure Application", poRef: "ESN/SOW/20DEC2023/04" }],
+    },
+    {
+      name: "Internal",
+      client: "INT",
+      type: "BAU",
+      product: "COR",
+      version: "NA",
+      module: "ALL",
+      tasks: [
+        { taskId: "Internal", taskName: "Internal", poRef: null },
+        { taskId: "Yoga", taskName: "Yoga", poRef: null },
+      ],
+    },
+  ];
+
+  let nextSeq = 4390;
+  for (const a of activitySpecs) {
+    const seq = nextSeq++;
+    const activityId = `${a.client}.${a.module}.${a.type}.${a.version}.${seq}`;
+    const existing = await prisma.activity.findUnique({ where: { activityId } });
+    if (existing) continue; // idempotent re-run
+    await prisma.activity.create({
+      data: {
+        activityId,
+        seq,
+        name: a.name,
+        clientId: masters.CLIENT[a.client],
+        typeId: masters.TYPE[a.type],
+        productId: masters.PRODUCT[a.product],
+        versionId: masters.VERSION[a.version],
+        moduleId: masters.MODULE[a.module],
+        cloudOnPremId: a.cloudOnPrem ? masters.CLOUD_ON_PREM[a.cloudOnPrem] : null,
+        tasks: {
+          create: a.tasks.map((t) => ({
+            taskId: t.taskId,
+            taskName: t.taskName,
+            poRef: t.poRef,
+          })),
+        },
+      },
+    });
+  }
+
+  // Keep the sequence ahead of anything the seed hand-assigned.
+  await prisma.activitySequence.updateMany({
+    where: { id: 1, current: { lt: nextSeq - 1 } },
+    data: { current: nextSeq - 1 },
+  });
 
   console.log("Seed complete:");
   console.log(`  Manager: himanshu@ptexsolutions.com / Himanshu@123 (id ${manager.id})`);

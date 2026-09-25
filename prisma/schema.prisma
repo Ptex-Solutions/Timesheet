@@ -25,97 +25,138 @@ enum TimesheetStatus {
 }
 
 model User {
-  id           Int          @id @default(autoincrement())
+  id           Int      @id @default(autoincrement())
   name         String
-  email        String       @unique
+  email        String   @unique
   password     String
-  role         Role         @default(EMPLOYEE)
-  employeeCode String       @unique
-  isActive     Boolean      @default(true)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  role         Role     @default(EMPLOYEE)
+  employeeCode String   @unique
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  timesheets   Timesheet[]
-  sessions     Session[]
-  auditLogs    AuditLog[]
-  misReports   MISReport[]  @relation("MISCreator")
-  permissions  UserPermission[]
-}
-
-model Client {
-  id         Int         @id @default(autoincrement())
-  clientCode String      @unique
-  clientName String
-  isActive   Boolean     @default(true)
-  createdAt  DateTime    @default(now())
-
-  projects   Project[]
-  timesheets Timesheet[]
-}
-
-model Project {
-  id          Int         @id @default(autoincrement())
-  activityId  String      @unique
-  description String
-  clientId    Int
-  client      Client      @relation(fields: [clientId], references: [id])
-  isActive    Boolean     @default(true)
-  createdAt   DateTime    @default(now())
-
-  tasks       Task[]
   timesheets  Timesheet[]
+  sessions    Session[]
+  auditLogs   AuditLog[]
+  misReports  MISReport[]      @relation("MISCreator")
+  permissions UserPermission[]
+}
+
+enum MasterType {
+  TYPE
+  CLIENT
+  PRODUCT
+  VERSION
+  MODULE
+  CLOUD_ON_PREM
+}
+
+model Master {
+  id          Int        @id @default(autoincrement())
+  type        MasterType
+  code        String
+  description String?
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  activitiesAsClient  Activity[]     @relation("ActivityClient")
+  activitiesAsType    Activity[]     @relation("ActivityType")
+  activitiesAsProduct Activity[]     @relation("ActivityProduct")
+  activitiesAsVersion Activity[]     @relation("ActivityVersion")
+  activitiesAsModule  Activity[]     @relation("ActivityModule")
+  activitiesAsCloud   Activity[]     @relation("ActivityCloud")
+  timesheets          Timesheet[]    @relation("TimesheetClient")
+  sandboxRows         SandboxEntry[] @relation("SandboxClient")
+
+  @@unique([type, code])
+  @@index([type])
+}
+
+model ActivitySequence {
+  id      Int @id @default(1)
+  current Int @default(4389) // next issued = current + 1
+}
+
+model Activity {
+  id         Int    @id @default(autoincrement())
+  activityId String @unique // e.g. STC.ALL.CR.1.0.4390
+  seq        Int    @unique // 4390, 4391, ...
+  name       String // free-text description, e.g. "SUMM Cloud Development"
+
+  clientId      Int
+  client        Master  @relation("ActivityClient", fields: [clientId], references: [id])
+  typeId        Int
+  type          Master  @relation("ActivityType", fields: [typeId], references: [id])
+  productId     Int
+  product       Master  @relation("ActivityProduct", fields: [productId], references: [id])
+  versionId     Int
+  version       Master  @relation("ActivityVersion", fields: [versionId], references: [id])
+  moduleId      Int
+  module        Master  @relation("ActivityModule", fields: [moduleId], references: [id])
+  cloudOnPremId Int?
+  cloudOnPrem   Master? @relation("ActivityCloud", fields: [cloudOnPremId], references: [id])
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tasks          Task[]
+  timesheets     Timesheet[]
+  sandboxEntries SandboxEntry[] @relation("SandboxActivity")
 
   @@index([clientId])
+  @@index([typeId])
 }
 
 model Task {
-  id        Int         @id @default(autoincrement())
-  taskId    String
-  taskName  String
-  poRef     String?
-  projectId Int
-  project   Project     @relation(fields: [projectId], references: [id])
-  isActive  Boolean     @default(true)
-  createdAt DateTime    @default(now())
+  id         Int      @id @default(autoincrement())
+  taskId     String
+  taskName   String
+  poRef      String?
+  activityId Int
+  activity   Activity @relation(fields: [activityId], references: [id])
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
 
   timesheets Timesheet[]
 
-  @@index([projectId])
+  @@index([activityId])
 }
 
 model Timesheet {
-  id          Int             @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   userId      Int
-  user        User            @relation(fields: [userId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
   clientId    Int
-  client      Client          @relation(fields: [clientId], references: [id])
-  projectId   Int
-  project     Project         @relation(fields: [projectId], references: [id])
+  client      Master   @relation("TimesheetClient", fields: [clientId], references: [id])
+  activityId  Int
+  activity    Activity @relation(fields: [activityId], references: [id])
   taskId      Int
-  task        Task            @relation(fields: [taskId], references: [id])
+  task        Task     @relation(fields: [taskId], references: [id])
   date        DateTime
   weekNo      Int
   weekLabel   String
-  description String          @db.Text
-  hours       Decimal         @db.Decimal(5, 2)
+  description String   @db.Text
+  hours       Decimal  @db.Decimal(5, 2)
   minutes     Int
   type        String
 
-  sat Decimal @db.Decimal(5, 2) @default(0)
-  sun Decimal @db.Decimal(5, 2) @default(0)
-  mon Decimal @db.Decimal(5, 2) @default(0)
-  tue Decimal @db.Decimal(5, 2) @default(0)
-  wed Decimal @db.Decimal(5, 2) @default(0)
-  thu Decimal @db.Decimal(5, 2) @default(0)
-  fri Decimal @db.Decimal(5, 2) @default(0)
+  sat Decimal @default(0) @db.Decimal(5, 2)
+  sun Decimal @default(0) @db.Decimal(5, 2)
+  mon Decimal @default(0) @db.Decimal(5, 2)
+  tue Decimal @default(0) @db.Decimal(5, 2)
+  wed Decimal @default(0) @db.Decimal(5, 2)
+  thu Decimal @default(0) @db.Decimal(5, 2)
+  fri Decimal @default(0) @db.Decimal(5, 2)
 
   status        TimesheetStatus @default(DRAFT)
   submittedAt   DateTime?
   approvedAt    DateTime?
   rejectionNote String?
 
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   sandboxEntries SandboxEntry[]
 
@@ -123,43 +164,47 @@ model Timesheet {
   @@index([date])
   @@index([status])
   @@index([clientId])
-  @@index([projectId])
+  @@index([activityId])
 }
 
 model SandboxEntry {
-  id           Int        @id @default(autoincrement())
-  originalId   Int?
-  original     Timesheet? @relation(fields: [originalId], references: [id])
-  userId       Int
-  clientId     Int
-  projectId    Int
-  taskId       Int
-  date         DateTime
-  weekNo       Int
-  weekLabel    String
-  description  String     @db.Text
-  hours        Decimal    @db.Decimal(5, 2)
-  minutes      Int
-  type         String
+  id          Int        @id @default(autoincrement())
+  originalId  Int?
+  original    Timesheet? @relation(fields: [originalId], references: [id])
+  userId      Int
+  clientId    Int
+  client      Master     @relation("SandboxClient", fields: [clientId], references: [id])
+  activityId  Int
+  activity    Activity   @relation("SandboxActivity", fields: [activityId], references: [id])
+  taskId      Int
+  date        DateTime
+  weekNo      Int
+  weekLabel   String
+  description String     @db.Text
+  hours       Decimal    @db.Decimal(5, 2)
+  minutes     Int
+  type        String
 
-  sat Decimal @db.Decimal(5, 2) @default(0)
-  sun Decimal @db.Decimal(5, 2) @default(0)
-  mon Decimal @db.Decimal(5, 2) @default(0)
-  tue Decimal @db.Decimal(5, 2) @default(0)
-  wed Decimal @db.Decimal(5, 2) @default(0)
-  thu Decimal @db.Decimal(5, 2) @default(0)
-  fri Decimal @db.Decimal(5, 2) @default(0)
+  sat Decimal @default(0) @db.Decimal(5, 2)
+  sun Decimal @default(0) @db.Decimal(5, 2)
+  mon Decimal @default(0) @db.Decimal(5, 2)
+  tue Decimal @default(0) @db.Decimal(5, 2)
+  wed Decimal @default(0) @db.Decimal(5, 2)
+  thu Decimal @default(0) @db.Decimal(5, 2)
+  fri Decimal @default(0) @db.Decimal(5, 2)
 
   sandboxLabel String
-  isDeleted    Boolean    @default(false)
-  isAdded      Boolean    @default(false)
-  isModified   Boolean    @default(false)
+  isDeleted    Boolean  @default(false)
+  isAdded      Boolean  @default(false)
+  isModified   Boolean  @default(false)
   managerNote  String?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([sandboxLabel])
   @@index([userId])
+  @@index([clientId])
+  @@index([activityId])
 }
 
 model MISReport {

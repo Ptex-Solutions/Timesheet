@@ -9,11 +9,10 @@ export const loginSchema = z.object({
 export const timesheetCreateSchema = z.object({
   date: z.string().refine((s) => !Number.isNaN(Date.parse(s)), "Invalid date"),
   clientId: z.coerce.number().int().positive(),
-  projectId: z.coerce.number().int().positive(),
+  activityId: z.coerce.number().int().positive(),
   taskId: z.coerce.number().int().positive(),
   description: z.string().min(1, "Description required").max(2000),
   hours: z.coerce.number().min(0).max(24),
-  type: z.string().min(1).max(50),
   status: z.enum(["DRAFT", "SUBMITTED"]).default("DRAFT"),
 });
 
@@ -22,16 +21,23 @@ export const timesheetUpdateSchema = timesheetCreateSchema.partial().extend({
   rejectionNote: z.string().max(2000).optional().nullable(),
 });
 
-export const clientSchema = z.object({
-  clientCode: z.string().min(1).max(20),
-  clientName: z.string().min(1).max(120),
+export const MASTER_TYPES = ["TYPE", "CLIENT", "PRODUCT", "VERSION", "MODULE", "CLOUD_ON_PREM"] as const;
+
+export const masterSchema = z.object({
+  type: z.enum(MASTER_TYPES),
+  code: z.string().min(1).max(40),
+  description: z.string().max(200).optional().nullable(),
   isActive: z.boolean().optional(),
 });
 
-export const projectSchema = z.object({
-  activityId: z.string().min(1).max(60),
-  description: z.string().min(1).max(200),
+export const activitySchema = z.object({
+  name: z.string().min(1).max(200),
   clientId: z.coerce.number().int().positive(),
+  typeId: z.coerce.number().int().positive(),
+  productId: z.coerce.number().int().positive(),
+  versionId: z.coerce.number().int().positive(),
+  moduleId: z.coerce.number().int().positive(),
+  cloudOnPremId: z.coerce.number().int().positive().optional().nullable(),
   isActive: z.boolean().optional(),
 });
 
@@ -39,7 +45,7 @@ export const taskSchema = z.object({
   taskId: z.string().min(1).max(40),
   taskName: z.string().min(1).max(200),
   poRef: z.string().max(80).optional().nullable(),
-  projectId: z.coerce.number().int().positive(),
+  activityId: z.coerce.number().int().positive(),
   isActive: z.boolean().optional(),
 });
 
