@@ -26,7 +26,7 @@ export const MASTER_TYPES = Object.values(MasterType) as [MasterType, ...MasterT
 
 export const masterSchema = z.object({
   type: z.nativeEnum(MasterType),
-  code: z.string().min(1).max(40),
+  code: z.string().min(1).max(40).trim().transform((s) => s.toUpperCase()),
   description: z.string().max(200).optional().nullable(),
   isActive: z.boolean().optional(),
 });
