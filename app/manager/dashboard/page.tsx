@@ -183,7 +183,7 @@ export default async function ManagerDashboard() {
                   )}
                   {canClients && (
                     <Button asChild className="w-full justify-start" variant="outline">
-                      <Link href="/manager/clients"><Building2 className="h-4 w-4" /> Clients & Projects</Link>
+                      <Link href="/manager/activities"><Building2 className="h-4 w-4" /> Masters & Activities</Link>
                     </Button>
                   )}
                 </CardContent>

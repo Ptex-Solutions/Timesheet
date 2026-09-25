@@ -91,3 +91,18 @@ export async function createActivity(input: CreateActivityInput, tx?: Prisma.Tra
   if (tx) return createActivityInTx(input, tx);
   return prisma.$transaction((innerTx) => createActivityInTx(input, innerTx));
 }
+
+const MASTER_BRIEF = { select: { id: true, code: true, description: true } } as const;
+
+// Shared include for Activity list views (API GET + manager page): the six
+// Master relations as code/description only, plus every task (active and
+// inactive) ordered by taskId.
+export const activityListInclude = {
+  client: MASTER_BRIEF,
+  type: MASTER_BRIEF,
+  product: MASTER_BRIEF,
+  version: MASTER_BRIEF,
+  module: MASTER_BRIEF,
+  cloudOnPrem: MASTER_BRIEF,
+  tasks: { orderBy: { taskId: "asc" } },
+} satisfies Prisma.ActivityInclude;

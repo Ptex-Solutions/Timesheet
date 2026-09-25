@@ -36,8 +36,8 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/api/sandbox") ||
     pathname.startsWith("/api/mis") ||
     pathname.startsWith("/api/users") ||
-    // pathname.startsWith("/api/clients") ||
-    pathname.startsWith("/api/projects") ||
+    pathname.startsWith("/api/masters") ||
+    pathname.startsWith("/api/activities") ||
     pathname.startsWith("/api/tasks") ||
     pathname.startsWith("/api/access");
 
@@ -69,8 +69,8 @@ export const config = {
     "/api/sandbox/:path*",
     "/api/mis/:path*",
     "/api/users/:path*",
-    "/api/clients/:path*",
-    "/api/projects/:path*",
+    "/api/masters/:path*",
+    "/api/activities/:path*",
     "/api/tasks/:path*",
     "/api/access/:path*",
   ],
