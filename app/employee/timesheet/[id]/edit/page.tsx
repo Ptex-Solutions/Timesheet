@@ -24,11 +24,10 @@ export default async function EditTimesheetPage({ params }: { params: { id: stri
           initial={{
             date: ts.date.toISOString(),
             clientId: ts.clientId,
-            projectId: ts.projectId,
+            activityId: ts.activityId,
             taskId: ts.taskId,
             hours: Number(ts.hours),
             description: ts.description,
-            type: ts.type,
           }}
         />
       </div>

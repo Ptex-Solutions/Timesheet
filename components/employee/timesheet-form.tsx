@@ -14,18 +14,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { weekLabelForDate, isoYearWeek, weekdayKey } from "@/lib/utils";
 
-const TYPES = ["Internal", "Implementation", "R&D", "Yoga", "Support", "Meeting", "Training"];
+type ClientMaster = { id: number; code: string; description: string | null };
 
-type Client = {
+type Activity = {
   id: number;
-  clientCode: string;
-  clientName: string;
-  projects: Array<{
-    id: number;
-    activityId: string;
-    description: string;
-    tasks: Array<{ id: number; taskId: string; taskName: string; poRef: string | null }>;
-  }>;
+  activityId: string;
+  name: string;
+  clientId: number;
+  type: { id: number; code: string; description: string | null };
+  tasks: Array<{ id: number; taskId: string; taskName: string; poRef: string | null }>;
 };
 
 export function TimesheetForm({
@@ -42,42 +39,52 @@ export function TimesheetForm({
 
   const [date, setDate] = useState(initial?.date?.slice?.(0, 10) ?? today);
   const [clientId, setClientId] = useState<number | null>(initial?.clientId ?? null);
-  const [projectId, setProjectId] = useState<number | null>(initial?.projectId ?? null);
+  const [activityId, setActivityId] = useState<number | null>(initial?.activityId ?? null);
   const [taskId, setTaskId] = useState<number | null>(initial?.taskId ?? null);
   const [hours, setHours] = useState<number>(Number(initial?.hours ?? 0));
   const [description, setDescription] = useState<string>(initial?.description ?? "");
-  const [type, setType] = useState<string>(initial?.type ?? "Implementation");
   const [submitting, setSubmitting] = useState<"draft" | "submit" | null>(null);
 
+  // Non-staff callers only get active masters / activities / tasks back.
   const { data: clientsData } = useQuery({
-    queryKey: ["clients"],
+    queryKey: ["masters", "CLIENT"],
     queryFn: async () => {
-      const r = await fetch("/api/clients");
+      const r = await fetch("/api/masters?type=CLIENT");
       const j = await r.json();
-      return j.data as Client[];
+      return (j.data ?? []) as ClientMaster[];
+    },
+  });
+
+  const { data: activitiesData } = useQuery({
+    queryKey: ["activities", clientId],
+    enabled: clientId != null,
+    queryFn: async () => {
+      const r = await fetch(`/api/activities?clientId=${clientId}`);
+      const j = await r.json();
+      return (j.data ?? []) as Activity[];
     },
   });
 
   const clients = clientsData ?? [];
   const selectedClient = clients.find((c) => c.id === clientId);
-  const projects = selectedClient?.projects ?? [];
-  const selectedProject = projects.find((p) => p.id === projectId);
-  const tasks = selectedProject?.tasks ?? [];
+  const activities = activitiesData ?? [];
+  const selectedActivity = activities.find((a) => a.id === activityId);
+  const tasks = selectedActivity?.tasks ?? [];
   const selectedTask = tasks.find((t) => t.id === taskId);
 
-  // Auto-clear cascading selections
+  // Auto-clear cascading selections once the dependent list has loaded
   useEffect(() => {
-    if (clientId && !projects.find((p) => p.id === projectId)) {
-      setProjectId(null);
+    if (activitiesData && activityId && !activitiesData.find((a) => a.id === activityId)) {
+      setActivityId(null);
       setTaskId(null);
     }
-  }, [clientId, projects, projectId]);
+  }, [activitiesData, activityId]);
 
   useEffect(() => {
-    if (projectId && !tasks.find((t) => t.id === taskId)) {
+    if (selectedActivity && taskId && !selectedActivity.tasks.find((t) => t.id === taskId)) {
       setTaskId(null);
     }
-  }, [projectId, tasks, taskId]);
+  }, [selectedActivity, taskId]);
 
   const dateInfo = useMemo(() => {
     const d = new Date(date);
@@ -90,8 +97,8 @@ export function TimesheetForm({
   }, [date]);
 
   async function save(status: "DRAFT" | "SUBMITTED") {
-    if (!clientId || !projectId || !taskId) {
-      toast.error("Please choose a client, project and task");
+    if (!clientId || !activityId || !taskId) {
+      toast.error("Please choose a client, activity and task");
       return;
     }
     if (hours <= 0) {
@@ -112,11 +119,10 @@ export function TimesheetForm({
         body: JSON.stringify({
           date,
           clientId,
-          projectId,
+          activityId,
           taskId,
           hours,
           description,
-          type,
           status,
         }),
       });
@@ -168,15 +174,22 @@ export function TimesheetForm({
 
             <div className="space-y-2">
               <Label>Client Code</Label>
-              <Select value={clientId?.toString() ?? ""} onValueChange={(v) => setClientId(parseInt(v, 10))}>
+              <Select
+                value={clientId?.toString() ?? ""}
+                onValueChange={(v) => {
+                  setClientId(parseInt(v, 10));
+                  setActivityId(null);
+                  setTaskId(null);
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Choose client..." />
                 </SelectTrigger>
                 <SelectContent>
                   {clients.map((c) => (
                     <SelectItem key={c.id} value={c.id.toString()}>
-                      <span className="font-mono text-xs mr-2">{c.clientCode}</span>
-                      {c.clientName}
+                      <span className="font-mono text-xs mr-2">{c.code}</span>
+                      {c.description}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -185,15 +198,22 @@ export function TimesheetForm({
 
             <div className="space-y-2">
               <Label>Activity ID</Label>
-              <Select value={projectId?.toString() ?? ""} onValueChange={(v) => setProjectId(parseInt(v, 10))} disabled={!clientId}>
+              <Select
+                value={activityId?.toString() ?? ""}
+                onValueChange={(v) => {
+                  setActivityId(parseInt(v, 10));
+                  setTaskId(null);
+                }}
+                disabled={!clientId}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder={clientId ? "Choose activity..." : "Pick a client first"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id.toString()}>
-                      <span className="font-mono text-xs mr-2">{p.activityId}</span>
-                      {p.description}
+                  {activities.map((a) => (
+                    <SelectItem key={a.id} value={a.id.toString()}>
+                      <span className="font-mono text-xs mr-2">{a.activityId}</span>
+                      {a.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -202,9 +222,9 @@ export function TimesheetForm({
 
             <div className="space-y-2">
               <Label>Beeline Task</Label>
-              <Select value={taskId?.toString() ?? ""} onValueChange={(v) => setTaskId(parseInt(v, 10))} disabled={!projectId}>
+              <Select value={taskId?.toString() ?? ""} onValueChange={(v) => setTaskId(parseInt(v, 10))} disabled={!activityId}>
                 <SelectTrigger>
-                  <SelectValue placeholder={projectId ? "Choose task..." : "Pick an activity first"} />
+                  <SelectValue placeholder={activityId ? "Choose task..." : "Pick an activity first"} />
                 </SelectTrigger>
                 <SelectContent>
                   {tasks.map((t) => (
@@ -219,18 +239,13 @@ export function TimesheetForm({
 
             <div className="space-y-2">
               <Label>Type</Label>
-              <Select value={type} onValueChange={setType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TYPES.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex h-10 items-center rounded-md border border-slate-200 bg-slate-50 px-3 text-sm">
+                {selectedActivity ? (
+                  <Badge variant="brand">{selectedActivity.type.code}</Badge>
+                ) : (
+                  <span className="text-slate-400">Set by the selected activity</span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -288,7 +303,7 @@ export function TimesheetForm({
               <p className="text-slate-700 mt-2">{selectedTask.taskName}</p>
               {selectedClient && (
                 <p className="text-xs text-slate-500 mt-2">
-                  {selectedClient.clientCode} · {selectedProject?.activityId}
+                  {selectedClient.code} · {selectedActivity?.activityId}
                 </p>
               )}
             </CardContent>

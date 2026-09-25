@@ -40,7 +40,7 @@ export default async function EmployeeDashboard() {
     }),
     prisma.timesheet.findMany({
       where: { userId },
-      include: { client: true, project: true, task: true },
+      include: { client: true, activity: true, task: true },
       orderBy: { date: "desc" },
       take: 6,
     }),
@@ -172,9 +172,9 @@ export default async function EmployeeDashboard() {
                 {recent.map((r) => (
                   <tr key={r.id}>
                     <td className="font-medium">{formatDate(r.date)}</td>
-                    <td><span className="font-mono text-xs">{r.client.clientCode}</span></td>
+                    <td><span className="font-mono text-xs">{r.client.code}</span></td>
                     <td>
-                      <p className="text-xs font-mono text-slate-500">{r.project.activityId}</p>
+                      <p className="text-xs font-mono text-slate-500">{r.activity.activityId}</p>
                       <p className="text-xs">{r.task.taskId}</p>
                     </td>
                     <td className="max-w-md truncate">{r.description}</td>

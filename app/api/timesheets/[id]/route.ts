@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { audit } from "@/lib/api-utils";
+import { audit, badRequest, readJsonBody } from "@/lib/api-utils";
 import { getCurrentAccess } from "@/lib/authz";
 import { timesheetUpdateSchema } from "@/lib/validations";
+import { resolveTimesheetRefs } from "@/lib/timesheet-refs";
 import { dayCount, isoYearWeek, weekLabelForDate, weekdayKey } from "@/lib/utils";
 
-const FIELD_KEYS = ["date", "clientId", "projectId", "taskId", "description", "hours", "type"] as const;
+const FIELD_KEYS = ["date", "clientId", "activityId", "taskId", "description", "hours"] as const;
 
 async function loadTimesheet(id: number) {
   const access = await getCurrentAccess();
@@ -30,7 +31,7 @@ export async function GET(_req: NextRequest, ctx: { params: { id: string } }) {
     include: {
       user: { select: { id: true, name: true, employeeCode: true } },
       client: true,
-      project: true,
+      activity: { include: { client: true, type: true } },
       task: true,
     },
   });
@@ -43,8 +44,9 @@ export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
   if ("error" in a) return a.error;
   const { user, perms, ts, isOwner } = a;
 
-  const body = await req.json();
-  const parsed = timesheetUpdateSchema.safeParse(body);
+  const json = await readJsonBody(req);
+  if (json instanceof NextResponse) return json;
+  const parsed = timesheetUpdateSchema.safeParse(json.body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
   }
@@ -95,9 +97,21 @@ export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
     data.sat = 0; data.sun = 0; data.mon = 0; data.tue = 0; data.wed = 0; data.thu = 0; data.fri = 0;
     (data as any)[key] = v.hours ?? Number(ts.hours);
   }
-  if (v.clientId !== undefined) data.clientId = v.clientId;
-  if (v.projectId !== undefined) data.projectId = v.projectId;
-  if (v.taskId !== undefined) data.taskId = v.taskId;
+  if (v.clientId !== undefined || v.activityId !== undefined || v.taskId !== undefined) {
+    // Re-validate the (possibly partial) Activity/Task pair against the stored
+    // row: the task must belong to the activity, and clientId/type are derived
+    // from the activity (a submitted clientId is ignored). Unchanged ids may
+    // point at since-deactivated rows; newly chosen ones must be active.
+    const resolved = await resolveTimesheetRefs(v.activityId ?? ts.activityId, v.taskId ?? ts.taskId, {
+      activityId: ts.activityId,
+      taskId: ts.taskId,
+    });
+    if (!resolved.ok) return badRequest(resolved.error);
+    data.clientId = resolved.refs.clientId;
+    data.activityId = resolved.refs.activityId;
+    data.taskId = resolved.refs.taskId;
+    data.type = resolved.refs.type;
+  }
   if (v.description !== undefined) data.description = v.description;
   if (v.hours !== undefined) {
     data.hours = v.hours;
@@ -107,7 +121,6 @@ export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
       (data as any)[key] = v.hours;
     }
   }
-  if (v.type !== undefined) data.type = v.type;
 
   if (v.status) {
     data.status = v.status;

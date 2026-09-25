@@ -12,7 +12,7 @@ export default async function GenerateMISPage() {
 
   const [users, clients, sandboxes] = await Promise.all([
     prisma.user.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
-    prisma.client.findMany({ where: { isActive: true }, orderBy: { clientCode: "asc" } }),
+    prisma.master.findMany({ where: { type: "CLIENT", isActive: true }, orderBy: { code: "asc" } }),
     // Sandbox as an MIS source requires sandbox.view (enforced by /api/mis too).
     canViewSandbox
       ? prisma.sandboxEntry.groupBy({
@@ -32,7 +32,7 @@ export default async function GenerateMISPage() {
         />
         <MISBuilder
           users={users.map((u) => ({ id: u.id, name: u.name, employeeCode: u.employeeCode }))}
-          clients={clients.map((c) => ({ id: c.id, clientCode: c.clientCode, clientName: c.clientName }))}
+          clients={clients.map((c) => ({ id: c.id, clientCode: c.code, clientName: c.description ?? c.code }))}
           sandboxes={sandboxes.map((s) => ({ label: s.sandboxLabel, count: s._count.id }))}
           canFinalize={access.perms.has("mis.finalize")}
         />

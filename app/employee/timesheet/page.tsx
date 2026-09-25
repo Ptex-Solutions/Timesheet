@@ -16,7 +16,7 @@ export default async function MyTimesheetsPage() {
 
   const rows = await prisma.timesheet.findMany({
     where: { userId },
-    include: { client: true, project: true, task: true },
+    include: { client: true, activity: true, task: true },
     orderBy: [{ date: "desc" }, { id: "desc" }],
     take: 200,
   });
@@ -63,8 +63,8 @@ export default async function MyTimesheetsPage() {
                 <tr key={r.id}>
                   <td className="font-medium">{formatDate(r.date)}</td>
                   <td className="text-xs text-slate-500 font-mono whitespace-nowrap">W{r.weekNo} · {r.weekLabel}</td>
-                  <td><span className="font-mono text-xs">{r.client.clientCode}</span></td>
-                  <td className="font-mono text-xs">{r.project.activityId}</td>
+                  <td><span className="font-mono text-xs">{r.client.code}</span></td>
+                  <td className="font-mono text-xs">{r.activity.activityId}</td>
                   <td>
                     <p className="text-xs font-mono">{r.task.taskId}</p>
                     <p className="text-xs text-slate-500 truncate max-w-[180px]">{r.task.taskName}</p>

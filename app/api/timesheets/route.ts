@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { audit } from "@/lib/api-utils";
+import { audit, badRequest, readJsonBody } from "@/lib/api-utils";
 import { getCurrentAccess } from "@/lib/authz";
 import { timesheetCreateSchema } from "@/lib/validations";
+import { resolveTimesheetRefs } from "@/lib/timesheet-refs";
 import { dayCount, isoYearWeek, weekLabelForDate, weekdayKey } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
@@ -39,8 +40,10 @@ export async function GET(req: NextRequest) {
     orderBy: [{ date: "desc" }, { id: "desc" }],
     include: {
       user: { select: { id: true, name: true, employeeCode: true } },
-      client: { select: { id: true, clientCode: true, clientName: true } },
-      project: { select: { id: true, activityId: true, description: true } },
+      client: { select: { id: true, code: true, description: true } },
+      activity: {
+        select: { id: true, activityId: true, name: true, type: { select: { id: true, code: true } } },
+      },
       task: { select: { id: true, taskId: true, taskName: true, poRef: true } },
     },
     take: 500,
@@ -54,13 +57,20 @@ export async function POST(req: NextRequest) {
   if (!access) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { user } = access;
 
-  const body = await req.json();
-  const parsed = timesheetCreateSchema.safeParse(body);
+  const json = await readJsonBody(req);
+  if (json instanceof NextResponse) return json;
+  const parsed = timesheetCreateSchema.safeParse(json.body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
   }
 
   const v = parsed.data;
+
+  // Task must belong to the Activity; clientId and type are derived from it.
+  const resolved = await resolveTimesheetRefs(v.activityId, v.taskId);
+  if (!resolved.ok) return badRequest(resolved.error);
+  const refs = resolved.refs;
+
   const date = new Date(v.date);
   const minutes = Math.round(v.hours * 60);
   const wk = isoYearWeek(date);
@@ -85,16 +95,16 @@ export async function POST(req: NextRequest) {
   const created = await prisma.timesheet.create({
     data: {
       userId: user.id,
-      clientId: v.clientId,
-      projectId: v.projectId,
-      taskId: v.taskId,
+      clientId: refs.clientId,
+      activityId: refs.activityId,
+      taskId: refs.taskId,
       date,
       weekNo: wk.week,
       weekLabel: wkLabel,
       description: v.description,
       hours: v.hours,
       minutes,
-      type: v.type,
+      type: refs.type,
       sat: dayHours.sat,
       sun: dayHours.sun,
       mon: dayHours.mon,

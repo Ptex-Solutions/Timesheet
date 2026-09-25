@@ -19,7 +19,7 @@ export default async function TimesheetDetailPage({ params }: { params: { id: st
   const id = parseInt(params.id, 10);
   const ts = await prisma.timesheet.findUnique({
     where: { id },
-    include: { user: true, client: true, project: true, task: true },
+    include: { user: true, client: true, activity: true, task: true },
   });
   if (!ts) notFound();
 
@@ -34,7 +34,7 @@ export default async function TimesheetDetailPage({ params }: { params: { id: st
         </div>
         <PageHeader
           title={`${ts.user.name} · ${formatDate(ts.date)}`}
-          description={`${ts.client.clientCode} · ${ts.project.activityId} · ${ts.task.taskId}`}
+          description={`${ts.client.code} · ${ts.activity.activityId} · ${ts.task.taskId}`}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -45,9 +45,9 @@ export default async function TimesheetDetailPage({ params }: { params: { id: st
             </CardHeader>
             <CardContent className="space-y-4">
               <Field label="Employee" value={`${ts.user.name} (${ts.user.employeeCode})`} />
-              <Field label="Client" value={`${ts.client.clientCode} – ${ts.client.clientName}`} />
-              <Field label="Activity ID" value={ts.project.activityId} mono />
-              <Field label="Activity Description" value={ts.project.description} />
+              <Field label="Client" value={ts.client.description ? `${ts.client.code} – ${ts.client.description}` : ts.client.code} />
+              <Field label="Activity ID" value={ts.activity.activityId} mono />
+              <Field label="Activity Description" value={ts.activity.name} />
               <Field label="Task" value={`${ts.task.taskId} – ${ts.task.taskName}`} />
               {ts.task.poRef && <Field label="PO Reference" value={ts.task.poRef} mono />}
               <Field label="Date" value={formatDate(ts.date)} />

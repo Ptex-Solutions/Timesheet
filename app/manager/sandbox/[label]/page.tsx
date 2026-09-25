@@ -15,17 +15,31 @@ export default async function SandboxLabelPage({ params }: { params: { label: st
 
   const [users, clients] = await Promise.all([
     prisma.user.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }),
-    prisma.client.findMany({
-      where: { isActive: true },
-      orderBy: { clientCode: "asc" },
+    prisma.master.findMany({
+      where: { type: "CLIENT", isActive: true },
+      orderBy: { code: "asc" },
       include: {
-        projects: {
+        activitiesAsClient: {
           where: { isActive: true },
-          include: { tasks: { where: { isActive: true } } },
+          orderBy: { activityId: "asc" },
+          include: { tasks: { where: { isActive: true }, orderBy: { taskId: "asc" } } },
         },
       },
     }),
   ]);
+
+  // Shape expected by the editor's Client -> Activity -> Task selects.
+  const clientOptions = clients.map((c) => ({
+    id: c.id,
+    clientCode: c.code,
+    clientName: c.description ?? c.code,
+    projects: c.activitiesAsClient.map((a) => ({
+      id: a.id,
+      activityId: a.activityId,
+      description: a.name,
+      tasks: a.tasks.map((t) => ({ id: t.id, taskId: t.taskId, taskName: t.taskName, poRef: t.poRef })),
+    })),
+  }));
 
   return (
     <>
@@ -43,7 +57,7 @@ export default async function SandboxLabelPage({ params }: { params: { label: st
         <SandboxEditor
           label={label}
           users={users as any}
-          clients={clients as any}
+          clients={clientOptions}
           canEdit={access.perms.has("sandbox.edit")}
           canDelete={access.perms.has("sandbox.delete")}
           canFinalize={access.perms.has("mis.finalize")}

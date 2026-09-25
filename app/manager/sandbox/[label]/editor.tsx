@@ -189,8 +189,8 @@ export function SandboxEditor({
                         <p className="font-medium">{e.user?.name}</p>
                         <p className="text-xs text-slate-500 font-mono">{e.user?.employeeCode}</p>
                       </td>
-                      <td><span className="font-mono text-xs">{e.client?.clientCode}</span></td>
-                      <td className="font-mono text-xs">{e.project?.activityId}</td>
+                      <td><span className="font-mono text-xs">{e.client?.code}</span></td>
+                      <td className="font-mono text-xs">{e.activity?.activityId}</td>
                       <td>
                         <p className="font-mono text-xs">{e.task?.taskId}</p>
                       </td>
@@ -306,7 +306,7 @@ function DiffSection({ title, tone, rows }: { title: string; tone: "emerald" | "
         {rows.map((r) => (
           <div key={r.id} className={`rounded-lg border p-3 ${tones[tone]}`}>
             <div className="flex items-center justify-between text-xs text-slate-500">
-              <span>{formatDate(r.date)} · <span className="font-mono">{r.client?.clientCode}</span> · <span className="font-mono">{r.project?.activityId}</span></span>
+              <span>{formatDate(r.date)} · <span className="font-mono">{r.client?.code}</span> · <span className="font-mono">{r.activity?.activityId}</span></span>
               <span className="font-semibold tabular-nums">{Number(r.hours).toFixed(2)}h</span>
             </div>
             <p className="text-sm text-slate-700 mt-1 truncate">{r.description}</p>
@@ -335,7 +335,7 @@ function EntryDialog({
   const [date, setDate] = useState<string>(entry?.date?.slice?.(0, 10) ?? new Date().toISOString().slice(0, 10));
   const [userId, setUserId] = useState<number | null>(entry?.userId ?? null);
   const [clientId, setClientId] = useState<number | null>(entry?.clientId ?? null);
-  const [projectId, setProjectId] = useState<number | null>(entry?.projectId ?? null);
+  const [projectId, setProjectId] = useState<number | null>(entry?.activityId ?? null);
   const [taskId, setTaskId] = useState<number | null>(entry?.taskId ?? null);
   const [hours, setHours] = useState<number>(Number(entry?.hours ?? 0));
   const [description, setDescription] = useState<string>(entry?.description ?? "");
@@ -355,7 +355,7 @@ function EntryDialog({
     try {
       const body: any = {
         sandboxLabel: label,
-        userId, clientId, projectId, taskId,
+        userId, clientId, activityId: projectId, taskId,
         date, hours, description, type, managerNote,
       };
       if (mode === "edit") body.id = entry!.id;

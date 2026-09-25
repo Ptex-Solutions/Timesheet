@@ -69,13 +69,15 @@ export const sandboxCreateSchema = z.object({
 export const sandboxEntrySchema = z.object({
   sandboxLabel: z.string().min(1),
   userId: z.coerce.number().int().positive(),
-  clientId: z.coerce.number().int().positive(),
-  projectId: z.coerce.number().int().positive(),
+  // Derived server-side from the Activity; accepted but ignored.
+  clientId: z.coerce.number().int().positive().optional(),
+  activityId: z.coerce.number().int().positive(),
   taskId: z.coerce.number().int().positive(),
   date: z.string(),
   description: z.string().min(1).max(2000),
   hours: z.coerce.number().min(0).max(24),
-  type: z.string().min(1),
+  // Defaults to the Activity's TYPE code; managers may override in a sandbox.
+  type: z.string().min(1).optional(),
   managerNote: z.string().max(2000).optional().nullable(),
 });
 

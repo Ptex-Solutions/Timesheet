@@ -32,15 +32,15 @@ async function loadTimesheetKpis() {
     }),
     prisma.timesheet.findMany({
       where: { status: "SUBMITTED" },
-      include: { user: true, client: true, project: true, task: true },
+      include: { user: true, client: true, activity: true, task: true },
       orderBy: { submittedAt: "desc" },
       take: 6,
     }),
   ]);
 
   const clientIds = byClient.map((b) => b.clientId);
-  const clients = await prisma.client.findMany({ where: { id: { in: clientIds } } });
-  const cMap = new Map(clients.map((c) => [c.id, c.clientCode]));
+  const clients = await prisma.master.findMany({ where: { id: { in: clientIds } } });
+  const cMap = new Map(clients.map((c) => [c.id, c.code]));
   const chartData = byClient
     .map((b) => ({ name: cMap.get(b.clientId) ?? "?", hours: Number(b._sum.hours ?? 0) }))
     .sort((a, b) => b.hours - a.hours)
@@ -226,9 +226,9 @@ export default async function ManagerDashboard() {
                         <p className="font-medium">{r.user.name}</p>
                         <p className="text-xs text-slate-500 font-mono">{r.user.employeeCode}</p>
                       </td>
-                      <td><span className="font-mono text-xs">{r.client.clientCode}</span></td>
+                      <td><span className="font-mono text-xs">{r.client.code}</span></td>
                       <td>
-                        <p className="font-mono text-xs">{r.project.activityId}</p>
+                        <p className="font-mono text-xs">{r.activity.activityId}</p>
                         <p className="text-xs text-slate-500">{r.task.taskId}</p>
                       </td>
                       <td className="max-w-xs truncate">{r.description}</td>

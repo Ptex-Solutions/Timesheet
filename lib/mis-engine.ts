@@ -81,7 +81,7 @@ export async function generateMIS(params: {
       include: {
         user: true,
         client: true,
-        project: true,
+        activity: true,
         task: true,
       },
       orderBy: [{ date: "asc" }, { userId: "asc" }],
@@ -97,23 +97,23 @@ export async function generateMIS(params: {
     // hydrate via separate queries for relations
     const userIds = [...new Set(sandboxRows.map((r) => r.userId))];
     const clientIds = [...new Set(sandboxRows.map((r) => r.clientId))];
-    const projectIds = [...new Set(sandboxRows.map((r) => r.projectId))];
+    const activityIds = [...new Set(sandboxRows.map((r) => r.activityId))];
     const taskIds = [...new Set(sandboxRows.map((r) => r.taskId))];
-    const [users, clients, projects, tasks] = await Promise.all([
+    const [users, clients, activities, tasks] = await Promise.all([
       prisma.user.findMany({ where: { id: { in: userIds } } }),
-      prisma.client.findMany({ where: { id: { in: clientIds } } }),
-      prisma.project.findMany({ where: { id: { in: projectIds } } }),
+      prisma.master.findMany({ where: { id: { in: clientIds } } }),
+      prisma.activity.findMany({ where: { id: { in: activityIds } } }),
       prisma.task.findMany({ where: { id: { in: taskIds } } }),
     ]);
     const uMap = new Map(users.map((u) => [u.id, u]));
     const cMap = new Map(clients.map((c) => [c.id, c]));
-    const pMap = new Map(projects.map((p) => [p.id, p]));
+    const aMap = new Map(activities.map((a) => [a.id, a]));
     const tMap = new Map(tasks.map((t) => [t.id, t]));
     raw = sandboxRows.map((r) => ({
       ...r,
       user: uMap.get(r.userId)!,
       client: cMap.get(r.clientId)!,
-      project: pMap.get(r.projectId)!,
+      activity: aMap.get(r.activityId)!,
       task: tMap.get(r.taskId)!,
     }));
   }
@@ -125,8 +125,8 @@ export async function generateMIS(params: {
     date: new Date(r.date).toISOString().slice(0, 10),
     resource: r.user?.employeeCode ?? "",
     role: r.user?.role ?? "EMPLOYEE",
-    clientCode: r.client?.clientCode ?? "",
-    activityId: r.project?.activityId ?? "",
+    clientCode: r.client?.code ?? "",
+    activityId: r.activity?.activityId ?? "",
     description: r.description,
     hours: Number(r.hours),
     type: r.type,
@@ -168,7 +168,7 @@ export async function generateMIS(params: {
 
     const c = cliMap.get(r.clientId) ?? {
       clientCode: r.clientCode,
-      clientName: raw.find((x) => x.clientId === r.clientId)?.client?.clientName ?? r.clientCode,
+      clientName: raw.find((x) => x.clientId === r.clientId)?.client?.description || r.clientCode,
       hours: 0,
       minutes: 0,
     };

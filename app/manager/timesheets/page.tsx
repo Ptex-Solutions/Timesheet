@@ -36,11 +36,11 @@ export default async function ManagerTimesheetsPage({ searchParams }: { searchPa
   const [rows, clients, users] = await Promise.all([
     prisma.timesheet.findMany({
       where,
-      include: { user: true, client: true, project: true, task: true },
+      include: { user: true, client: true, activity: true, task: true },
       orderBy: [{ date: "desc" }, { id: "desc" }],
       take: 500,
     }),
-    prisma.client.findMany({ orderBy: { clientCode: "asc" } }),
+    prisma.master.findMany({ where: { type: "CLIENT" }, orderBy: { code: "asc" } }),
     prisma.user.findMany({ orderBy: { name: "asc" } }),
   ]);
 
@@ -62,7 +62,9 @@ export default async function ManagerTimesheetsPage({ searchParams }: { searchPa
           }
         />
 
-        <TimesheetsFilter clients={clients} users={users} initial={searchParams} />
+        <TimesheetsFilter
+          clients={clients.map((c) => ({ id: c.id, clientCode: c.code, clientName: c.description ?? c.code }))}
+          users={users} initial={searchParams} />
 
         <Card className="mt-4">
           <table className="table-clean">
@@ -91,8 +93,8 @@ export default async function ManagerTimesheetsPage({ searchParams }: { searchPa
                     <p className="font-medium">{r.user.name}</p>
                     <p className="text-xs text-slate-500 font-mono">{r.user.employeeCode}</p>
                   </td>
-                  <td><span className="font-mono text-xs">{r.client.clientCode}</span></td>
-                  <td className="font-mono text-xs">{r.project.activityId}</td>
+                  <td><span className="font-mono text-xs">{r.client.code}</span></td>
+                  <td className="font-mono text-xs">{r.activity.activityId}</td>
                   <td>
                     <p className="font-mono text-xs">{r.task.taskId}</p>
                     <p className="text-xs text-slate-500 truncate max-w-[180px]">{r.task.taskName}</p>

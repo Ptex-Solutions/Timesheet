@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { audit, requirePermission } from "@/lib/api-utils";
+import { audit, badRequest, parseId, readJsonBody, requirePermission } from "@/lib/api-utils";
 import { sandboxCreateSchema, sandboxEntrySchema } from "@/lib/validations";
+import { resolveTimesheetRefs } from "@/lib/timesheet-refs";
 import { dayCount, isoYearWeek, weekLabelForDate, weekdayKey } from "@/lib/utils";
 
 // GET: list distinct sandbox labels with counts
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
       originalId: t.id,
       userId: t.userId,
       clientId: t.clientId,
-      projectId: t.projectId,
+      activityId: t.activityId,
       taskId: t.taskId,
       date: t.date,
       weekNo: t.weekNo,
@@ -86,8 +87,12 @@ export async function PUT(req: NextRequest) {
   const access = await requirePermission("sandbox.edit");
   if (access instanceof NextResponse) return access;
   const { user } = access;
-  const body = await req.json();
-  const id = body?.id ? Number(body.id) : null;
+  const json = await readJsonBody(req);
+  if (json instanceof NextResponse) return json;
+  const body = json.body;
+  const hasId = body?.id !== undefined && body?.id !== null && body?.id !== "";
+  const id = hasId ? parseId(body.id) : null;
+  if (hasId && !id) return badRequest("Invalid id");
 
   if (id) {
     // update existing
@@ -104,9 +109,23 @@ export async function PUT(req: NextRequest) {
       isModified: true,
     };
     if (v.userId) data.userId = Number(v.userId);
-    if (v.clientId) data.clientId = Number(v.clientId);
-    if (v.projectId) data.projectId = Number(v.projectId);
-    if (v.taskId) data.taskId = Number(v.taskId);
+    if (v.clientId != null || v.activityId != null || v.taskId != null) {
+      // Task must belong to the Activity; clientId is derived from it.
+      // Unchanged ids may reference since-deactivated rows.
+      const activityId = v.activityId != null ? parseId(v.activityId) : existing.activityId;
+      const taskId = v.taskId != null ? parseId(v.taskId) : existing.taskId;
+      if (!activityId || !taskId) return badRequest("Invalid activityId or taskId");
+      const resolved = await resolveTimesheetRefs(activityId, taskId, {
+        activityId: existing.activityId,
+        taskId: existing.taskId,
+      });
+      if (!resolved.ok) return badRequest(resolved.error);
+      data.clientId = resolved.refs.clientId;
+      data.activityId = resolved.refs.activityId;
+      data.taskId = resolved.refs.taskId;
+      // Follow the new activity's type unless the manager overrode it.
+      if (v.type == null && resolved.refs.activityId !== existing.activityId) data.type = resolved.refs.type;
+    }
     if (v.date) {
       const d = new Date(v.date);
       data.date = d;
@@ -124,6 +143,9 @@ export async function PUT(req: NextRequest) {
   const parsed = sandboxEntrySchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
   const v = parsed.data;
+  const resolved = await resolveTimesheetRefs(v.activityId, v.taskId);
+  if (!resolved.ok) return badRequest(resolved.error);
+  const refs = resolved.refs;
   const d = new Date(v.date);
   const dayKey = weekdayKey(d);
   const dayHours: Record<string, number> = { sat:0, sun:0, mon:0, tue:0, wed:0, thu:0, fri:0 };
@@ -133,16 +155,16 @@ export async function PUT(req: NextRequest) {
     data: {
       sandboxLabel: v.sandboxLabel,
       userId: v.userId,
-      clientId: v.clientId,
-      projectId: v.projectId,
-      taskId: v.taskId,
+      clientId: refs.clientId,
+      activityId: refs.activityId,
+      taskId: refs.taskId,
       date: d,
       weekNo: isoYearWeek(d).week,
       weekLabel: weekLabelForDate(d),
       description: v.description,
       hours: v.hours,
       minutes: Math.round(v.hours * 60),
-      type: v.type,
+      type: v.type ?? refs.type,
       sat: dayHours.sat, sun: dayHours.sun, mon: dayHours.mon,
       tue: dayHours.tue, wed: dayHours.wed, thu: dayHours.thu, fri: dayHours.fri,
       managerNote: v.managerNote ?? null,
