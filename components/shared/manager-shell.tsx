@@ -8,6 +8,7 @@ import {
   BarChart3,
   Users,
   Building2,
+  Layers,
   ShieldCheck,
   Settings,
 } from "lucide-react";
@@ -22,7 +23,8 @@ const ITEMS: (NavItem & { perm: Permission | null })[] = [
   { href: "/manager/sandbox", label: "Sandbox MIS", icon: Beaker, perm: "sandbox.view" },
   { href: "/manager/mis", label: "MIS Reports", icon: BarChart3, perm: "mis.view" },
   { href: "/manager/employees", label: "Employees", icon: Users, perm: "employees.view" },
-  { href: "/manager/clients", label: "Clients & Projects", icon: Building2, perm: "clients.view" },
+  { href: "/manager/masters", label: "Masters", icon: Building2, perm: "clients.view" },
+  { href: "/manager/activities", label: "Activities", icon: Layers, perm: "clients.view" },
   { href: "/manager/access", label: "Access Panel", icon: ShieldCheck, perm: "access.view" },
   { href: "/manager/settings", label: "Settings", icon: Settings, perm: null },
 ];

@@ -56,7 +56,7 @@ export const MODULES = [
   },
   {
     key: "clients",
-    label: "Clients & Projects",
+    label: "Masters & Activities",
     actions: ["view", "edit", "delete"],
   },
   {
