@@ -22,7 +22,10 @@ export default async function SandboxLabelPage({ params }: { params: { label: st
         activitiesAsClient: {
           where: { isActive: true },
           orderBy: { activityId: "asc" },
-          include: { tasks: { where: { isActive: true }, orderBy: { taskId: "asc" } } },
+          include: {
+            type: { select: { code: true } },
+            tasks: { where: { isActive: true }, orderBy: { taskId: "asc" } },
+          },
         },
       },
     }),
@@ -37,6 +40,7 @@ export default async function SandboxLabelPage({ params }: { params: { label: st
       id: a.id,
       activityId: a.activityId,
       description: a.name,
+      typeCode: a.type.code,
       tasks: a.tasks.map((t) => ({ id: t.id, taskId: t.taskId, taskName: t.taskName, poRef: t.poRef })),
     })),
   }));

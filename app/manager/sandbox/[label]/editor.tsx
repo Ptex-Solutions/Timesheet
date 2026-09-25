@@ -44,12 +44,15 @@ type Client = {
     id: number;
     activityId: string;
     description: string;
+    typeCode: string;
     tasks: Array<{ id: number; taskId: string; taskName: string; poRef: string | null }>;
   }>;
 };
 type Entry = any;
 
-const TYPES = ["Internal", "Implementation", "R&D", "Yoga", "Support", "Meeting", "Training"];
+// Select sentinel meaning "use the selected activity's TYPE" (Radix Select
+// items can't have an empty value).
+const FROM_ACTIVITY = "__from_activity__";
 
 export function SandboxEditor({
   label,
@@ -339,12 +342,29 @@ function EntryDialog({
   const [taskId, setTaskId] = useState<number | null>(entry?.taskId ?? null);
   const [hours, setHours] = useState<number>(Number(entry?.hours ?? 0));
   const [description, setDescription] = useState<string>(entry?.description ?? "");
-  const [type, setType] = useState<string>(entry?.type ?? "Implementation");
+  // Activity TYPE code of the entry as stored, used to tell a real override
+  // apart from the derived value.
+  const entryActivityType = entry
+    ? clients.flatMap((c) => c.projects).find((p) => p.id === entry.activityId)?.typeCode
+    : undefined;
+  const [type, setType] = useState<string>(
+    entry?.type && entry.type !== entryActivityType ? entry.type : FROM_ACTIVITY
+  );
+  const { data: typeMasters } = useQuery({
+    queryKey: ["masters", "TYPE"],
+    queryFn: async () => {
+      const r = await fetch("/api/masters?type=TYPE");
+      const j = await r.json();
+      return (j.data ?? []) as Array<{ id: number; code: string; description: string | null }>;
+    },
+  });
   const [managerNote, setManagerNote] = useState<string>(entry?.managerNote ?? "");
   const [busy, setBusy] = useState(false);
 
   const projects = clients.find((c) => c.id === clientId)?.projects ?? [];
-  const tasks = projects.find((p) => p.id === projectId)?.tasks ?? [];
+  const selectedActivity = projects.find((p) => p.id === projectId);
+  const tasks = selectedActivity?.tasks ?? [];
+  const activityType = selectedActivity?.typeCode;
 
   async function save() {
     if (!userId || !clientId || !projectId || !taskId || hours <= 0 || !description.trim()) {
@@ -356,8 +376,13 @@ function EntryDialog({
       const body: any = {
         sandboxLabel: label,
         userId, clientId, activityId: projectId, taskId,
-        date, hours, description, type, managerNote,
+        date, hours, description, managerNote,
       };
+      // Only send `type` for an intentional override; otherwise the server
+      // derives it from the activity. On edit, explicitly reset a previous
+      // override back to the activity's type.
+      if (type !== FROM_ACTIVITY && type !== activityType) body.type = type;
+      else if (mode === "edit" && activityType && entry?.type !== activityType) body.type = activityType;
       if (mode === "edit") body.id = entry!.id;
 
       const r = await fetch("/api/sandbox", {
@@ -418,7 +443,10 @@ function EntryDialog({
             <Select value={type} onValueChange={setType}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                <SelectItem value={FROM_ACTIVITY}>
+                  {activityType ? `${activityType} (from activity)` : "(from activity)"}
+                </SelectItem>
+                {(typeMasters ?? []).map((t) => <SelectItem key={t.id} value={t.code}>{t.code}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
