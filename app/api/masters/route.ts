@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma, MasterType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { audit, badRequest, requirePermission } from "@/lib/api-utils";
+import { audit, badRequest, requirePermission, requireUser } from "@/lib/api-utils";
 import { masterSchema, MASTER_TYPES } from "@/lib/validations";
 
 function isValidMasterType(v: unknown): v is MasterType {
@@ -13,8 +13,10 @@ function conflictMessage(type: MasterType, code: string) {
 }
 
 export async function GET(req: NextRequest) {
-  const access = await requirePermission("clients.view");
-  if (access instanceof NextResponse) return access;
+  // Any signed-in user (employees need this for timesheet dropdowns);
+  // mutations below stay gated on clients.edit / clients.delete.
+  const user = await requireUser();
+  if (user instanceof NextResponse) return user;
 
   const type = req.nextUrl.searchParams.get("type");
   if (!isValidMasterType(type)) {

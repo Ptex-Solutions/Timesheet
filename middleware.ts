@@ -36,8 +36,6 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/api/sandbox") ||
     pathname.startsWith("/api/mis") ||
     pathname.startsWith("/api/users") ||
-    pathname.startsWith("/api/masters") ||
-    pathname.startsWith("/api/activities") ||
     pathname.startsWith("/api/tasks") ||
     pathname.startsWith("/api/access");
 

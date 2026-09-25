@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MasterType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { audit, badRequest, requirePermission } from "@/lib/api-utils";
+import { audit, badRequest, requirePermission, requireUser } from "@/lib/api-utils";
 import { activitySchema } from "@/lib/validations";
 import { activityListInclude, createActivity } from "@/lib/activity-service";
 
@@ -10,8 +10,10 @@ const IMMUTABLE_MESSAGE =
   "Client, Type, Product, Version and Module cannot be changed after an Activity is created";
 
 export async function GET(req: NextRequest) {
-  const access = await requirePermission("clients.view");
-  if (access instanceof NextResponse) return access;
+  // Any signed-in user (employees need this for timesheet dropdowns);
+  // mutations below stay gated on clients.edit / clients.delete.
+  const user = await requireUser();
+  if (user instanceof NextResponse) return user;
 
   const clientIdParam = req.nextUrl.searchParams.get("clientId");
   let clientId: number | undefined;
