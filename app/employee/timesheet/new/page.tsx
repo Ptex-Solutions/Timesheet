@@ -1,15 +1,6 @@
-import { Topbar } from "@/components/shared/topbar";
-import { PageHeader } from "@/components/shared/page-header";
-import { TimesheetForm } from "@/components/employee/timesheet-form";
+import { redirect } from "next/navigation";
 
+// Entries are now added inline on "All My Timesheets"; ?add=1 opens a blank row.
 export default function NewTimesheetPage() {
-  return (
-    <>
-      <Topbar title="New Timesheet" subtitle="Log a new work entry" />
-      <div className="p-6">
-        <PageHeader title="Log Time" description="Capture one task per row, mirroring the daily timesheet sheet." />
-        <TimesheetForm mode="create" />
-      </div>
-    </>
-  );
+  redirect("/employee/timesheet?add=1");
 }

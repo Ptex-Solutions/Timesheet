@@ -71,7 +71,7 @@ export default async function EmployeeDashboard() {
           description="Your weekly timesheet snapshot and submission status."
           actions={
             <Button asChild>
-              <Link href="/employee/timesheet/new">
+              <Link href="/employee/timesheet?add=1">
                 <PlusCircle className="h-4 w-4" /> New Entry
               </Link>
             </Button>
@@ -127,7 +127,7 @@ export default async function EmployeeDashboard() {
             </CardHeader>
             <CardContent className="space-y-2">
               <Button asChild className="w-full justify-start" variant="outline">
-                <Link href="/employee/timesheet/new"><PlusCircle className="h-4 w-4" /> Log new entry</Link>
+                <Link href="/employee/timesheet?add=1"><PlusCircle className="h-4 w-4" /> Log new entry</Link>
               </Button>
               <Button asChild className="w-full justify-start" variant="outline">
                 <Link href="/employee/timesheet"><FileSpreadsheet className="h-4 w-4" /> View all timesheets</Link>
