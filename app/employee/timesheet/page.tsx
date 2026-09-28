@@ -2,7 +2,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Topbar } from "@/components/shared/topbar";
 import { PageHeader } from "@/components/shared/page-header";
-import { TimesheetTable, type TimesheetRow } from "./timesheet-table";
+import { TimesheetTable } from "./timesheet-table";
+import { timesheetRowInclude, toTimesheetRow } from "./rows";
 
 export default async function MyTimesheetsPage({
   searchParams,
@@ -14,30 +15,12 @@ export default async function MyTimesheetsPage({
 
   const rows = await prisma.timesheet.findMany({
     where: { userId },
-    include: { client: true, activity: true, task: true },
+    include: timesheetRowInclude,
     orderBy: [{ date: "desc" }, { id: "desc" }],
     take: 200,
   });
 
-  // Plain, serialisable rows for the client table (no Decimal / Date objects).
-  const data: TimesheetRow[] = rows.map((r) => ({
-    id: r.id,
-    date: r.date.toISOString(),
-    weekNo: r.weekNo,
-    weekLabel: r.weekLabel,
-    clientId: r.clientId,
-    clientCode: r.client.code,
-    activityId: r.activityId,
-    activityCode: r.activity.activityId,
-    taskId: r.taskId,
-    taskCode: r.task.taskId,
-    taskName: r.task.taskName,
-    description: r.description,
-    hours: Number(r.hours),
-    type: r.type,
-    status: r.status,
-    rejectionNote: r.rejectionNote,
-  }));
+  const data = rows.map(toTimesheetRow);
 
   return (
     <>

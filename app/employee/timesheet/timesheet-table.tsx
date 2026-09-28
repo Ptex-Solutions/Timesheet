@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusPill } from "@/components/ui/status-pill";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDate, isoYearWeek, weekLabelForDate } from "@/lib/utils";
-import { FULL_DAY_HOURS, defaultEntryDate, localTodayIso } from "@/lib/entry-date";
+import { FULL_DAY_HOURS, defaultEntryDate, localTodayIso, type DatedHours } from "@/lib/entry-date";
 import { TimesheetActions } from "./actions";
 
 export type TimesheetRow = {
@@ -66,10 +66,13 @@ type Prefill = Partial<Pick<Draft, "clientId" | "activityId" | "taskId" | "hours
 
 // Default date for a new row: the latest date already logged (saved entries
 // plus rows still being added), or the next day once that date is full.
-function smartDefaultDate(rows: TimesheetRow[], drafts: Draft[]): string {
+function smartDefaultDate(rows: TimesheetRow[], drafts: Draft[], hints: DatedHours[] = []): string {
   const editing = new Set(drafts.map((d) => d.editId).filter(Boolean));
+  // Hints cover dates the table doesn't show; skip any date it already has.
+  const shown = new Set(rows.map((r) => r.date.slice(0, 10)));
   return defaultEntryDate(
     [
+      ...hints.filter((h) => !shown.has(h.date)),
       ...rows.filter((r) => !editing.has(r.id)).map((r) => ({ date: r.date.slice(0, 10), hours: r.hours })),
       ...drafts.map((d) => ({ date: d.date, hours: Number(d.hours) })),
     ],
@@ -89,10 +92,21 @@ const blankDraft = (date: string): Draft => ({
   description: "",
 });
 
-export function TimesheetTable({ rows, autoAdd = false }: { rows: TimesheetRow[]; autoAdd?: boolean }) {
+export function TimesheetTable({
+  rows,
+  autoAdd = false,
+  dateHints = [],
+  emptyText = "No timesheets yet.",
+}: {
+  rows: TimesheetRow[];
+  autoAdd?: boolean;
+  // Entries outside `rows` that should still steer the default date.
+  dateHints?: DatedHours[];
+  emptyText?: string;
+}) {
   const router = useRouter();
   // ?add=1 (dashboard "New Entry" links) opens with one blank row.
-  const [drafts, setDrafts] = useState<Draft[]>(() => (autoAdd ? [blankDraft(smartDefaultDate(rows, []))] : []));
+  const [drafts, setDrafts] = useState<Draft[]>(() => (autoAdd ? [blankDraft(smartDefaultDate(rows, [], dateHints))] : []));
   const [bulkBusy, setBulkBusy] = useState(false);
 
   // One request covers the whole Client → Activity → Task cascade. active=1
@@ -123,7 +137,7 @@ export function TimesheetTable({ rows, autoAdd = false }: { rows: TimesheetRow[]
     const task = activity?.tasks.find((t) => t.id === prefill.taskId);
     setDrafts((d) => [
       {
-        ...blankDraft(smartDefaultDate(rows, d)),
+        ...blankDraft(smartDefaultDate(rows, d, dateHints)),
         clientId: activity ? activity.clientId : prefill.clientId ?? null,
         activityId: activity ? activity.id : null,
         taskId: task ? task.id : null,
@@ -311,7 +325,7 @@ export function TimesheetTable({ rows, autoAdd = false }: { rows: TimesheetRow[]
             {rows.length === 0 && newDrafts.length === 0 && (
               <tr>
                 <td colSpan={10} className="text-center py-12 text-slate-400">
-                  No timesheets yet.
+                  {emptyText}
                   <button
                     type="button"
                     onClick={() => addDraft()}

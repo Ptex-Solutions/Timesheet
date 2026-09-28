@@ -8,9 +8,10 @@ import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { StatusPill } from "@/components/ui/status-pill";
 import { WeeklyGrid } from "@/components/employee/weekly-grid";
-import { formatDate, weekLabelForDate } from "@/lib/utils";
+import { TimesheetTable } from "../timesheet/timesheet-table";
+import { latestEntryHint, timesheetRowInclude, toTimesheetRow } from "../timesheet/rows";
+import { weekLabelForDate } from "@/lib/utils";
 
 export default async function EmployeeDashboard() {
   const session = await auth();
@@ -28,7 +29,7 @@ export default async function EmployeeDashboard() {
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-  const [weekly, monthly, recent, statuses] = await Promise.all([
+  const [weekly, monthly, weekRows, statuses, dateHints] = await Promise.all([
     prisma.timesheet.findMany({
       where: { userId, date: { gte: weekStart, lt: weekEnd } },
       select: { sat: true, sun: true, mon: true, tue: true, wed: true, thu: true, fri: true, hours: true },
@@ -38,17 +39,18 @@ export default async function EmployeeDashboard() {
       _sum: { hours: true },
       _count: true,
     }),
+    // This week's entries (Sat–Fri) for the editable table.
     prisma.timesheet.findMany({
-      where: { userId },
-      include: { client: true, activity: true, task: true },
-      orderBy: { date: "desc" },
-      take: 6,
+      where: { userId, date: { gte: weekStart, lt: weekEnd } },
+      include: timesheetRowInclude,
+      orderBy: [{ date: "desc" }, { id: "desc" }],
     }),
     prisma.timesheet.groupBy({
       by: ["status"],
       where: { userId },
       _count: { _all: true },
     }),
+    latestEntryHint(userId),
   ]);
 
   const weekTotal = weekly.reduce((s, r) => s + Number(r.hours), 0);
@@ -139,53 +141,22 @@ export default async function EmployeeDashboard() {
           </Card>
         </div>
 
-        <Card className="mt-6">
-          <CardHeader className="flex-row items-center justify-between flex">
+        <div className="mt-6">
+          <div className="flex items-end justify-between gap-2 mb-2">
             <div>
-              <CardTitle>Recent Entries</CardTitle>
-              <CardDescription>Your last 6 timesheet rows</CardDescription>
+              <h3 className="font-display text-lg font-bold text-navy">This Week&apos;s Entries</h3>
+              <p className="text-sm text-slate-500">{weekLabelForDate(now)} · add, clone, edit or submit right here</p>
             </div>
             <Button variant="ghost" size="sm" asChild>
               <Link href="/employee/timesheet">View all</Link>
             </Button>
-          </CardHeader>
-          <CardContent className="p-0">
-            <table className="table-clean">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Client</th>
-                  <th>Activity</th>
-                  <th>Description</th>
-                  <th>Hours</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recent.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="text-center py-10 text-slate-400">
-                      No timesheets yet. Click <span className="font-semibold text-brand">New Entry</span> to log your first.
-                    </td>
-                  </tr>
-                )}
-                {recent.map((r) => (
-                  <tr key={r.id}>
-                    <td className="font-medium">{formatDate(r.date)}</td>
-                    <td><span className="font-mono text-xs">{r.client.code}</span></td>
-                    <td>
-                      <p className="text-xs font-mono text-slate-500">{r.activity.activityId}</p>
-                      <p className="text-xs">{r.task.taskId}</p>
-                    </td>
-                    <td className="max-w-md truncate">{r.description}</td>
-                    <td className="font-semibold tabular-nums">{Number(r.hours).toFixed(2)}</td>
-                    <td><StatusPill status={r.status} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
+          </div>
+          <TimesheetTable
+            rows={weekRows.map(toTimesheetRow)}
+            dateHints={dateHints}
+            emptyText="Nothing logged this week yet."
+          />
+        </div>
       </div>
     </>
   );
