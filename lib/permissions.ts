@@ -2,24 +2,26 @@
 // consumed by API routes, server components, edge middleware, and client
 // components alike.
 
-export const ROLES = ["EMPLOYEE", "MANAGER", "ADMIN", "SUPER_ADMIN"] as const;
+// Rank order (lowest first): Admin is the day-to-day approver, Manager sits
+// above it (Access Panel, manages Admins), Super Admin above everyone.
+export const ROLES = ["EMPLOYEE", "ADMIN", "MANAGER", "SUPER_ADMIN"] as const;
 export type Role = (typeof ROLES)[number];
 
 export const ROLE_RANK: Record<Role, number> = {
   EMPLOYEE: 0,
-  MANAGER: 1,
-  ADMIN: 2,
+  ADMIN: 1,
+  MANAGER: 2,
   SUPER_ADMIN: 3,
 };
 
 export const ROLE_LABELS: Record<Role, string> = {
   EMPLOYEE: "Employee",
-  MANAGER: "Manager",
   ADMIN: "Admin",
+  MANAGER: "Manager",
   SUPER_ADMIN: "Super Admin",
 };
 
-export const STAFF_ROLES = ["MANAGER", "ADMIN", "SUPER_ADMIN"] as const;
+export const STAFF_ROLES = ["ADMIN", "MANAGER", "SUPER_ADMIN"] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
 export function isStaffRole(role: string | undefined | null): role is StaffRole {
@@ -111,9 +113,9 @@ export function roleDefaults(role: Role): Set<Permission> {
   switch (role) {
     case "EMPLOYEE":
       return new Set();
-    case "MANAGER":
-      return new Set(ALL_PERMISSIONS.filter((p) => !p.startsWith("access.")));
     case "ADMIN":
+      return new Set(ALL_PERMISSIONS.filter((p) => !p.startsWith("access.")));
+    case "MANAGER":
     case "SUPER_ADMIN":
       return new Set(ALL_PERMISSIONS);
   }

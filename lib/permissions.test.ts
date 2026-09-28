@@ -75,21 +75,21 @@ test("EMPLOYEE has no default permissions", () => {
   assert.equal(perms.size, 0);
 });
 
-test("MANAGER has every permission except access.*", () => {
-  const perms = roleDefaults("MANAGER");
+test("ADMIN has every permission except access.*", () => {
+  const perms = roleDefaults("ADMIN");
   for (const p of ALL_PERMISSIONS) {
     if (p.startsWith("access.")) {
-      assert.equal(perms.has(p), false, `expected MANAGER to lack ${p}`);
+      assert.equal(perms.has(p), false, `expected ADMIN to lack ${p}`);
     } else {
-      assert.equal(perms.has(p), true, `expected MANAGER to have ${p}`);
+      assert.equal(perms.has(p), true, `expected ADMIN to have ${p}`);
     }
   }
 });
 
-test("ADMIN has every permission", () => {
-  const perms = roleDefaults("ADMIN");
+test("MANAGER has every permission", () => {
+  const perms = roleDefaults("MANAGER");
   for (const p of ALL_PERMISSIONS) {
-    assert.equal(perms.has(p), true, `expected ADMIN to have ${p}`);
+    assert.equal(perms.has(p), true, `expected MANAGER to have ${p}`);
   }
 });
 
@@ -102,17 +102,17 @@ test("SUPER_ADMIN has every permission", () => {
 
 // ---------- overrides ----------
 
-test("grant override adds a permission beyond role defaults (MANAGER + access.view)", () => {
+test("grant override adds a permission beyond role defaults (ADMIN + access.view)", () => {
   const overrides: PermissionOverride[] = [{ module: "access", action: "view", granted: true }];
-  const perms = resolvePermissions("MANAGER", overrides);
+  const perms = resolvePermissions("ADMIN", overrides);
   assert.equal(perms.has("access.view"), true);
   // rest of access module still absent
   assert.equal(perms.has("access.edit"), false);
 });
 
-test("revoke override removes a role default (MANAGER - timesheets.delete)", () => {
+test("revoke override removes a role default (ADMIN - timesheets.delete)", () => {
   const overrides: PermissionOverride[] = [{ module: "timesheets", action: "delete", granted: false }];
-  const perms = resolvePermissions("MANAGER", overrides);
+  const perms = resolvePermissions("ADMIN", overrides);
   assert.equal(perms.has("timesheets.delete"), false);
   assert.equal(perms.has("timesheets.view"), true);
 });
@@ -139,54 +139,54 @@ test("unknown override module/action keys are ignored", () => {
     { module: "bogus", action: "view", granted: true },
     { module: "timesheets", action: "bogus", granted: true },
   ];
-  const before = resolvePermissions("MANAGER", []);
-  const after = resolvePermissions("MANAGER", overrides);
+  const before = resolvePermissions("ADMIN", []);
+  const after = resolvePermissions("ADMIN", overrides);
   assert.deepEqual([...after].sort(), [...before].sort());
 });
 
 // ---------- diffOverrides round-trip ----------
 
-test("diffOverrides -> resolvePermissions round trip for MANAGER", () => {
-  const defaults = roleDefaults("MANAGER");
-  const desired = new Set<Permission>([...defaults]);
-  desired.delete("timesheets.delete");
-  desired.add("access.view");
-
-  const overrides = diffOverrides("MANAGER", desired);
-  const resolved = resolvePermissions("MANAGER", overrides);
-  assert.deepEqual([...resolved].sort(), [...desired].sort());
-});
-
 test("diffOverrides -> resolvePermissions round trip for ADMIN", () => {
   const defaults = roleDefaults("ADMIN");
   const desired = new Set<Permission>([...defaults]);
-  desired.delete("employees.delete");
-  desired.delete("access.edit");
+  desired.delete("timesheets.delete");
+  desired.add("access.view");
 
   const overrides = diffOverrides("ADMIN", desired);
   const resolved = resolvePermissions("ADMIN", overrides);
   assert.deepEqual([...resolved].sort(), [...desired].sort());
 });
 
-test("diffOverrides of exactly the defaults is empty", () => {
+test("diffOverrides -> resolvePermissions round trip for MANAGER", () => {
   const defaults = roleDefaults("MANAGER");
-  const overrides = diffOverrides("MANAGER", defaults);
+  const desired = new Set<Permission>([...defaults]);
+  desired.delete("employees.delete");
+  desired.delete("access.edit");
+
+  const overrides = diffOverrides("MANAGER", desired);
+  const resolved = resolvePermissions("MANAGER", overrides);
+  assert.deepEqual([...resolved].sort(), [...desired].sort());
+});
+
+test("diffOverrides of exactly the defaults is empty", () => {
+  const defaults = roleDefaults("ADMIN");
+  const overrides = diffOverrides("ADMIN", defaults);
   assert.deepEqual(overrides, []);
 
-  const adminDefaults = roleDefaults("ADMIN");
-  const adminOverrides = diffOverrides("ADMIN", adminDefaults);
+  const adminDefaults = roleDefaults("MANAGER");
+  const adminOverrides = diffOverrides("MANAGER", adminDefaults);
   assert.deepEqual(adminOverrides, []);
 });
 
 test("diffOverrides produces deterministic catalogue order", () => {
-  const defaults = roleDefaults("MANAGER");
+  const defaults = roleDefaults("ADMIN");
   const desired = new Set<Permission>([...defaults]);
   desired.delete("timesheets.view");
   desired.delete("mis.view");
   desired.add("access.edit");
   desired.add("access.view");
 
-  const overrides = diffOverrides("MANAGER", desired);
+  const overrides = diffOverrides("ADMIN", desired);
   // revokes should appear in catalogue order, then grants in catalogue order
   const revokes = overrides.filter((o) => !o.granted).map((o) => `${o.module}.${o.action}`);
   const grants = overrides.filter((o) => o.granted).map((o) => `${o.module}.${o.action}`);
@@ -198,10 +198,10 @@ test("diffOverrides produces deterministic catalogue order", () => {
 
 test("canManageRole 4x4 matrix", () => {
   const expected: Record<string, Record<string, boolean>> = {
-    EMPLOYEE: { EMPLOYEE: false, MANAGER: false, ADMIN: false, SUPER_ADMIN: false },
-    MANAGER: { EMPLOYEE: true, MANAGER: false, ADMIN: false, SUPER_ADMIN: false },
-    ADMIN: { EMPLOYEE: true, MANAGER: true, ADMIN: false, SUPER_ADMIN: false },
-    SUPER_ADMIN: { EMPLOYEE: true, MANAGER: true, ADMIN: true, SUPER_ADMIN: true },
+    EMPLOYEE: { EMPLOYEE: false, ADMIN: false, MANAGER: false, SUPER_ADMIN: false },
+    ADMIN: { EMPLOYEE: true, ADMIN: false, MANAGER: false, SUPER_ADMIN: false },
+    MANAGER: { EMPLOYEE: true, ADMIN: true, MANAGER: false, SUPER_ADMIN: false },
+    SUPER_ADMIN: { EMPLOYEE: true, ADMIN: true, MANAGER: true, SUPER_ADMIN: true },
   };
   for (const actor of ROLES) {
     for (const target of ROLES) {
@@ -216,19 +216,19 @@ test("canManageRole 4x4 matrix", () => {
 
 // ---------- canEditAccess ----------
 
-test("canEditAccess: ADMIN with access.edit can edit MANAGER", () => {
+test("canEditAccess: MANAGER with access.edit can edit ADMIN", () => {
   const perms = new Set<Permission>(["access.edit"]);
-  assert.equal(canEditAccess("ADMIN", perms, "MANAGER"), true);
+  assert.equal(canEditAccess("MANAGER", perms, "ADMIN"), true);
 });
 
-test("canEditAccess: ADMIN cannot edit ADMIN (equal rank)", () => {
+test("canEditAccess: MANAGER cannot edit MANAGER (equal rank)", () => {
   const perms = new Set<Permission>(["access.edit"]);
-  assert.equal(canEditAccess("ADMIN", perms, "ADMIN"), false);
+  assert.equal(canEditAccess("MANAGER", perms, "MANAGER"), false);
 });
 
-test("canEditAccess: SUPER_ADMIN with access.edit can edit ADMIN", () => {
+test("canEditAccess: SUPER_ADMIN with access.edit can edit MANAGER", () => {
   const perms = new Set<Permission>(["access.edit"]);
-  assert.equal(canEditAccess("SUPER_ADMIN", perms, "ADMIN"), true);
+  assert.equal(canEditAccess("SUPER_ADMIN", perms, "MANAGER"), true);
 });
 
 test("canEditAccess: SUPER_ADMIN cannot edit SUPER_ADMIN (not editable target)", () => {
@@ -243,21 +243,21 @@ test("canEditAccess: no role can edit EMPLOYEE target", () => {
   }
 });
 
-test("canEditAccess: MANAGER with access.edit override still cannot edit MANAGER (equal rank)", () => {
+test("canEditAccess: ADMIN with access.edit override still cannot edit ADMIN (equal rank)", () => {
   const perms = new Set<Permission>(["access.edit"]);
-  assert.equal(canEditAccess("MANAGER", perms, "MANAGER"), false);
+  assert.equal(canEditAccess("ADMIN", perms, "ADMIN"), false);
 });
 
 test("canEditAccess: actor without access.edit cannot edit anyone", () => {
   const perms = new Set<Permission>([]);
-  assert.equal(canEditAccess("ADMIN", perms, "MANAGER"), false);
+  assert.equal(canEditAccess("MANAGER", perms, "ADMIN"), false);
 });
 
 // ---------- isStaffRole ----------
 
 test("isStaffRole classifies staff roles and rejects junk input", () => {
-  assert.equal(isStaffRole("MANAGER"), true);
   assert.equal(isStaffRole("ADMIN"), true);
+  assert.equal(isStaffRole("MANAGER"), true);
   assert.equal(isStaffRole("SUPER_ADMIN"), true);
   assert.equal(isStaffRole("EMPLOYEE"), false);
   assert.equal(isStaffRole("BOGUS"), false);
@@ -270,14 +270,14 @@ test("isStaffRole classifies staff roles and rejects junk input", () => {
 // ---------- STAFF_ROLES / ROLE_LABELS / ROLE_RANK sanity ----------
 
 test("STAFF_ROLES, ROLE_LABELS, ROLE_RANK are as specified", () => {
-  assert.deepEqual([...STAFF_ROLES].sort(), ["ADMIN", "MANAGER", "SUPER_ADMIN"].sort());
+  assert.deepEqual([...STAFF_ROLES].sort(), ["MANAGER", "ADMIN", "SUPER_ADMIN"].sort());
   assert.deepEqual(ROLE_LABELS, {
     EMPLOYEE: "Employee",
-    MANAGER: "Manager",
     ADMIN: "Admin",
+    MANAGER: "Manager",
     SUPER_ADMIN: "Super Admin",
   });
-  assert.deepEqual(ROLE_RANK, { EMPLOYEE: 0, MANAGER: 1, ADMIN: 2, SUPER_ADMIN: 3 });
+  assert.deepEqual(ROLE_RANK, { EMPLOYEE: 0, ADMIN: 1, MANAGER: 2, SUPER_ADMIN: 3 });
 });
 
 // ---------- hasPermission ----------

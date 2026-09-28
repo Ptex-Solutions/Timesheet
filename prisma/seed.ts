@@ -21,7 +21,8 @@ async function main() {
       name: "Operations Manager",
       email: "himanshu@ptexsolutions.com",
       password: managerPwd,
-      role: Role.MANAGER,
+      // Admin = day-to-day approver (below Manager).
+      role: Role.ADMIN,
       employeeCode: "MGR",
     },
   });
@@ -81,7 +82,8 @@ async function main() {
       name: "Administrator",
       email: "admin@ptexsolutions.com",
       password: adminPwd,
-      role: Role.ADMIN,
+      // Manager sits above Admin (Access Panel, manages Admins).
+      role: Role.MANAGER,
       employeeCode: "ADM",
     },
   });
@@ -237,7 +239,7 @@ async function main() {
   }
 
   console.log("Seed complete:");
-  console.log(`  Manager: himanshu@ptexsolutions.com / Himanshu@123 (id ${manager.id})`);
+  console.log(`  Admin: himanshu@ptexsolutions.com / Himanshu@123 (id ${manager.id})`);
   console.log(`  Employee: tqureshi@ptexsolutions.com / Taha@123 (id ${taha.id})`);
 }
 

@@ -27,7 +27,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <ul className="mt-8 space-y-3 text-sm text-white/80">
             <li className="flex items-center gap-3">
               <span className="h-1.5 w-1.5 rounded-full bg-brand" />
-              Role-isolated employee &amp; manager portals
+              Role-isolated employee &amp; admin portals
             </li>
             <li className="flex items-center gap-3">
               <span className="h-1.5 w-1.5 rounded-full bg-brand" />

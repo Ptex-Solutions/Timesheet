@@ -59,7 +59,7 @@ export function Topbar({ title, subtitle }: { title: string; subtitle?: string }
             <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <a href={isStaffRole(role) ? "/manager/settings" : "/employee/profile"}>
+              <a href={isStaffRole(role) ? "/admin/settings" : "/employee/profile"}>
                 <UserCircle className="h-4 w-4" /> Profile
               </a>
             </DropdownMenuItem>

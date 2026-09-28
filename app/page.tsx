@@ -5,5 +5,5 @@ import { isStaffRole } from "@/lib/permissions";
 export default async function Home() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  redirect(isStaffRole(session.user.role) ? "/manager/dashboard" : "/employee/dashboard");
+  redirect(isStaffRole(session.user.role) ? "/admin/dashboard" : "/employee/dashboard");
 }

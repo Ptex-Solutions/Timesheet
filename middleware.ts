@@ -30,16 +30,16 @@ export async function middleware(req: NextRequest) {
 
   const role = (token as any).role as string | undefined;
 
-  // Manager-only zones
-  const managerOnly =
-    pathname.startsWith("/manager") ||
+  // Staff-only zones (the /admin portal and staff APIs)
+  const staffOnly =
+    pathname.startsWith("/admin") ||
     pathname.startsWith("/api/sandbox") ||
     pathname.startsWith("/api/mis") ||
     pathname.startsWith("/api/users") ||
     pathname.startsWith("/api/tasks") ||
     pathname.startsWith("/api/access");
 
-  if (managerOnly && !isStaffRole(role)) {
+  if (staffOnly && !isStaffRole(role)) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -48,10 +48,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Employee zone reachable to both, but staff default to manager dashboard
+  // Employee zone reachable to both, but staff default to the admin portal dashboard
   if (pathname === "/" ) {
     const url = req.nextUrl.clone();
-    url.pathname = isStaffRole(role) ? "/manager/dashboard" : "/employee/dashboard";
+    url.pathname = isStaffRole(role) ? "/admin/dashboard" : "/employee/dashboard";
     return NextResponse.redirect(url);
   }
 
@@ -62,7 +62,7 @@ export const config = {
   matcher: [
     "/",
     "/employee/:path*",
-    "/manager/:path*",
+    "/admin/:path*",
     "/api/timesheets/:path*",
     "/api/sandbox/:path*",
     "/api/mis/:path*",

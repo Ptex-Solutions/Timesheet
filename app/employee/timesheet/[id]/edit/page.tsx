@@ -29,7 +29,7 @@ export default async function EditTimesheetPage({ params }: { params: { id: stri
           <div className="mb-4 flex gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
             <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
             <div>
-              <p className="font-semibold">Rejected by your manager</p>
+              <p className="font-semibold">Rejected by your admin</p>
               <p className="mt-0.5">{ts.rejectionNote || "No reason was given."}</p>
               <p className="mt-1 text-xs text-red-700/80">Make your changes, then use Submit to send it for approval again.</p>
             </div>
