@@ -79,10 +79,12 @@ export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
     if (ts.status === "APPROVED") {
       return NextResponse.json({ error: "Re-open the timesheet before editing" }, { status: 400 });
     }
-    const ownerDraft = isOwner && ts.status === "DRAFT";
-    if (!ownerDraft && !perms.has("timesheets.edit")) {
-      // Preserve the historical message for owners editing a non-DRAFT entry.
-      return forbidden(isOwner ? "Only DRAFT timesheets can be edited" : "Forbidden");
+    // Owners may fix their own DRAFT entries, and REJECTED ones so they can
+    // correct and resubmit them. Status here can only be DRAFT or SUBMITTED
+    // (APPROVED/REJECTED take the decision branch above).
+    const ownerEditable = isOwner && (ts.status === "DRAFT" || ts.status === "REJECTED");
+    if (!ownerEditable && !perms.has("timesheets.edit")) {
+      return forbidden(isOwner ? "Only DRAFT or REJECTED timesheets can be edited" : "Forbidden");
     }
   }
 
@@ -132,7 +134,14 @@ export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
     if (v.status === "REJECTED") data.rejectionNote = v.rejectionNote ?? null;
   }
 
-  const action = v.status === "APPROVED" ? "approve" : v.status === "REJECTED" ? "reject" : "update";
+  const action =
+    v.status === "APPROVED"
+      ? "approve"
+      : v.status === "REJECTED"
+        ? "reject"
+        : v.status === "SUBMITTED" && ts.status === "REJECTED"
+          ? "resubmit"
+          : "update";
   const updated = await prisma.timesheet.update({ where: { id }, data });
   await audit({ userId: user.id, action, entity: "Timesheet", entityId: id, meta: { changes: Object.keys(data) } });
 

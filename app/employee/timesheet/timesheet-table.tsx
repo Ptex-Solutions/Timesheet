@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -30,6 +30,7 @@ export type TimesheetRow = {
   hours: number;
   type: string;
   status: string;
+  rejectionNote: string | null;
 };
 
 type Activity = {
@@ -280,7 +281,8 @@ export function TimesheetTable({ rows, autoAdd = false }: { rows: TimesheetRow[]
             )}
 
             {rows.map((r) => (
-              <tr key={r.id}>
+              <Fragment key={r.id}>
+              <tr className={r.status === "REJECTED" ? "bg-red-50/40" : undefined}>
                 <td className="font-medium whitespace-nowrap">{formatDate(r.date)}</td>
                 <td className="text-xs text-slate-500 font-mono whitespace-nowrap">W{r.weekNo} · {r.weekLabel}</td>
                 <td><span className="font-mono text-xs">{r.clientCode}</span></td>
@@ -308,6 +310,15 @@ export function TimesheetTable({ rows, autoAdd = false }: { rows: TimesheetRow[]
                   </div>
                 </td>
               </tr>
+              {r.status === "REJECTED" && (
+                <tr className="bg-red-50/40">
+                  <td colSpan={10} className="pt-0 text-xs text-red-700">
+                    <span className="font-semibold">Rejected:</span> {r.rejectionNote || "No reason given."}{" "}
+                    <span className="text-red-600/80">Edit it and resubmit.</span>
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
           </tbody>
         </table>

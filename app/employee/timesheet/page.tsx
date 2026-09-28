@@ -36,6 +36,7 @@ export default async function MyTimesheetsPage({
     hours: Number(r.hours),
     type: r.type,
     status: r.status,
+    rejectionNote: r.rejectionNote,
   }));
 
   return (
