@@ -63,7 +63,7 @@ export const sandboxCreateSchema = z.object({
   sandboxLabel: z.string().min(1).max(120),
   dateFrom: z.string(),
   dateTo: z.string(),
-  status: z.enum(["DRAFT", "SUBMITTED", "APPROVED"]).default("APPROVED"),
+  status: z.enum(["SUBMITTED", "APPROVED"]).default("APPROVED"),
 });
 
 export const sandboxEntrySchema = z.object({
@@ -89,3 +89,25 @@ export const misGenerateSchema = z.object({
   employeeIds: z.array(z.coerce.number()).optional(),
   clientIds: z.array(z.coerce.number()).optional(),
 });
+
+// Staff-only query thread on a timesheet.
+export const timesheetCommentSchema = z.object({
+  body: z.string().trim().min(1, "Comment is empty").max(4000),
+  mentionIds: z.array(z.coerce.number().int().positive()).max(20).default([]),
+});
+
+export const timesheetQueryStatusSchema = z.object({
+  status: z.enum(["OPEN", "RESOLVED"]),
+});
+
+// Approve / reject several SUBMITTED entries at once from the table.
+export const timesheetBulkDecisionSchema = z
+  .object({
+    ids: z.array(z.coerce.number().int().positive()).min(1).max(500),
+    status: z.enum(["APPROVED", "REJECTED"]),
+    rejectionNote: z.string().trim().max(2000).optional().nullable(),
+  })
+  .refine((v) => v.status === "APPROVED" || !!v.rejectionNote, {
+    message: "A reason is required to reject",
+    path: ["rejectionNote"],
+  });

@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const parsed = sandboxCreateSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
-  const { sandboxLabel, dateFrom, dateTo, status } = parsed.data;
+  const { sandboxLabel, dateFrom, dateTo } = parsed.data;
 
   const existing = await prisma.sandboxEntry.findFirst({ where: { sandboxLabel } });
   if (existing) return NextResponse.json({ error: "Sandbox label already exists" }, { status: 409 });
@@ -46,7 +46,8 @@ export async function POST(req: NextRequest) {
   const source = await prisma.timesheet.findMany({
     where: {
       date: { gte: new Date(dateFrom), lte: new Date(dateTo) },
-      status: status === "DRAFT" ? "DRAFT" : { in: ["SUBMITTED", "APPROVED"] },
+      // Never clone drafts: they are the employee's unsubmitted work.
+      status: { in: ["SUBMITTED", "APPROVED"] },
     },
   });
 

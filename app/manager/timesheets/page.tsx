@@ -1,15 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentAccess } from "@/lib/authz";
-import { Download, Filter } from "lucide-react";
+import { Download } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Topbar } from "@/components/shared/topbar";
 import { PageHeader } from "@/components/shared/page-header";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { StatusPill } from "@/components/ui/status-pill";
-import { formatDate } from "@/lib/utils";
 import { TimesheetsFilter } from "./filter";
+import { ManagerTimesheetsTable, type ManagerTimesheetRow } from "./timesheets-table";
 
 type Search = {
   status?: string;
@@ -17,16 +15,24 @@ type Search = {
   userId?: string;
   from?: string;
   to?: string;
+  query?: string;
 };
 
 export default async function ManagerTimesheetsPage({ searchParams }: { searchParams: Search }) {
   const access = await getCurrentAccess();
   if (!access || !access.perms.has("timesheets.view")) redirect("/manager/dashboard");
 
-  const where: any = {};
-  if (searchParams.status) where.status = searchParams.status;
+  // Drafts are the employee's unsubmitted work — never shown to staff.
+  const where: any = { status: { not: "DRAFT" } };
+  if (searchParams.status && searchParams.status !== "DRAFT") where.status = searchParams.status;
   if (searchParams.clientId) where.clientId = parseInt(searchParams.clientId, 10);
   if (searchParams.userId) where.userId = parseInt(searchParams.userId, 10);
+  if (searchParams.query === "open") where.query = { status: "OPEN" };
+  if (searchParams.query === "resolved") where.query = { status: "RESOLVED" };
+  if (searchParams.query === "mine") {
+    where.query = { status: "OPEN" };
+    where.comments = { some: { mentions: { some: { userId: access.user.id } } } };
+  }
   if (searchParams.from || searchParams.to) {
     where.date = {};
     if (searchParams.from) where.date.gte = new Date(searchParams.from);
@@ -36,7 +42,14 @@ export default async function ManagerTimesheetsPage({ searchParams }: { searchPa
   const [rows, clients, users] = await Promise.all([
     prisma.timesheet.findMany({
       where,
-      include: { user: true, client: true, activity: true, task: true },
+      include: {
+        user: true,
+        client: true,
+        activity: true,
+        task: true,
+        query: { select: { status: true } },
+        _count: { select: { comments: true } },
+      },
       orderBy: [{ date: "desc" }, { id: "desc" }],
       take: 500,
     }),
@@ -45,6 +58,23 @@ export default async function ManagerTimesheetsPage({ searchParams }: { searchPa
   ]);
 
   const totalHours = rows.reduce((s, r) => s + Number(r.hours), 0);
+
+  const data: ManagerTimesheetRow[] = rows.map((r) => ({
+    id: r.id,
+    date: r.date.toISOString(),
+    userName: r.user.name,
+    employeeCode: r.user.employeeCode,
+    clientCode: r.client.code,
+    activityCode: r.activity.activityId,
+    taskCode: r.task.taskId,
+    taskName: r.task.taskName,
+    description: r.description,
+    hours: Number(r.hours),
+    type: r.type,
+    status: r.status,
+    queryStatus: r.query?.status ?? null,
+    commentCount: r._count.comments,
+  }));
 
   return (
     <>
@@ -66,53 +96,7 @@ export default async function ManagerTimesheetsPage({ searchParams }: { searchPa
           clients={clients.map((c) => ({ id: c.id, clientCode: c.code, clientName: c.description ?? c.code }))}
           users={users} initial={searchParams} />
 
-        <Card className="mt-4">
-          <table className="table-clean">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Employee</th>
-                <th>Client</th>
-                <th>Activity</th>
-                <th>Task</th>
-                <th>Description</th>
-                <th className="text-right">Hours</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 && (
-                <tr><td colSpan={10} className="text-center py-12 text-slate-400">No entries match these filters.</td></tr>
-              )}
-              {rows.map((r) => (
-                <tr key={r.id}>
-                  <td className="font-medium">{formatDate(r.date)}</td>
-                  <td>
-                    <p className="font-medium">{r.user.name}</p>
-                    <p className="text-xs text-slate-500 font-mono">{r.user.employeeCode}</p>
-                  </td>
-                  <td><span className="font-mono text-xs">{r.client.code}</span></td>
-                  <td className="font-mono text-xs">{r.activity.activityId}</td>
-                  <td>
-                    <p className="font-mono text-xs">{r.task.taskId}</p>
-                    <p className="text-xs text-slate-500 truncate max-w-[180px]">{r.task.taskName}</p>
-                  </td>
-                  <td className="max-w-xs truncate">{r.description}</td>
-                  <td className="text-right font-semibold tabular-nums">{Number(r.hours).toFixed(2)}</td>
-                  <td className="text-xs">{r.type}</td>
-                  <td><StatusPill status={r.status} /></td>
-                  <td>
-                    <Button asChild size="sm" variant="ghost">
-                      <Link href={`/manager/timesheets/${r.id}`}>Open</Link>
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
+        <ManagerTimesheetsTable rows={data} canApprove={access.perms.has("timesheets.approve")} />
       </div>
     </>
   );

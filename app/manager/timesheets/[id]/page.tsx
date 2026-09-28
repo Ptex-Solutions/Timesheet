@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { StatusPill } from "@/components/ui/status-pill";
 import { formatDate } from "@/lib/utils";
 import { ApprovalPanel } from "./approval-panel";
+import { QueryPanel } from "./query-panel";
+import { listMentionableStaff, loadQueryThread } from "@/lib/timesheet-query";
 
 export default async function TimesheetDetailPage({ params }: { params: { id: string } }) {
   const access = await getCurrentAccess();
@@ -21,7 +23,10 @@ export default async function TimesheetDetailPage({ params }: { params: { id: st
     where: { id },
     include: { user: true, client: true, activity: true, task: true },
   });
-  if (!ts) notFound();
+  // Drafts are private to the employee until submitted.
+  if (!ts || ts.status === "DRAFT") notFound();
+
+  const [thread, staff] = await Promise.all([loadQueryThread(ts.id), listMentionableStaff()]);
 
   return (
     <>
@@ -67,12 +72,15 @@ export default async function TimesheetDetailPage({ params }: { params: { id: st
             </CardContent>
           </Card>
 
-          <ApprovalPanel
-            id={ts.id}
-            status={ts.status}
-            canApprove={access.perms.has("timesheets.approve")}
-            canReopen={access.perms.has("timesheets.reopen")}
-          />
+          <div className="space-y-6">
+            <ApprovalPanel
+              id={ts.id}
+              status={ts.status}
+              canApprove={access.perms.has("timesheets.approve")}
+              canReopen={access.perms.has("timesheets.reopen")}
+            />
+            <QueryPanel timesheetId={ts.id} initial={thread} staff={staff} currentUserId={access.user.id} />
+          </div>
         </div>
       </div>
     </>

@@ -23,8 +23,11 @@ export async function GET(req: NextRequest) {
   // Without timesheets.view, callers are ALWAYS scoped to their own data
   if (!perms.has("timesheets.view")) {
     where.userId = user.id;
-  } else if (userIdParam) {
-    where.userId = parseInt(userIdParam, 10);
+  } else {
+    if (userIdParam) where.userId = parseInt(userIdParam, 10);
+    // Drafts are the employee's unsubmitted work: staff only ever see their
+    // own, never anyone else's.
+    where.AND = [{ OR: [{ status: { not: "DRAFT" } }, { userId: user.id }] }];
   }
 
   if (dateFrom || dateTo) {

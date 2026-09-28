@@ -13,7 +13,13 @@ async function loadTimesheet(id: number) {
   if (!access) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   const ts = Number.isFinite(id) ? await prisma.timesheet.findUnique({ where: { id } }) : null;
   if (!ts) return { error: NextResponse.json({ error: "Not found" }, { status: 404 }) };
-  return { ...access, ts, isOwner: ts.userId === access.user.id };
+  const isOwner = ts.userId === access.user.id;
+  // Another user's DRAFT is private to them: invisible to staff for every
+  // operation (read, edit, delete), not just forbidden.
+  if (!isOwner && ts.status === "DRAFT") {
+    return { error: NextResponse.json({ error: "Not found" }, { status: 404 }) };
+  }
+  return { ...access, ts, isOwner };
 }
 
 function forbidden(message = "Forbidden") {

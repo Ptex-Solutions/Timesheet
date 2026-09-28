@@ -40,6 +40,11 @@ model User {
   auditLogs   AuditLog[]
   misReports  MISReport[]      @relation("MISCreator")
   permissions UserPermission[]
+
+  timesheetComments        TimesheetComment[]        @relation("CommentAuthor")
+  timesheetMentions        TimesheetCommentMention[] @relation("MentionedUser")
+  timesheetQueriesOpened   TimesheetQuery[]          @relation("QueryOpenedBy")
+  timesheetQueriesResolved TimesheetQuery[]          @relation("QueryResolvedBy")
 }
 
 enum MasterType {
@@ -159,6 +164,10 @@ model Timesheet {
   updatedAt DateTime @updatedAt
 
   sandboxEntries SandboxEntry[]
+  // Staff-only discussion; kept in separate tables so employee-facing
+  // timesheet queries never load them.
+  query          TimesheetQuery?
+  comments       TimesheetComment[]
 
   @@index([userId])
   @@index([date])
@@ -256,4 +265,49 @@ model AuditLog {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+enum QueryStatus {
+  OPEN
+  RESOLVED
+}
+
+// Internal (staff-only) query on a timesheet entry. Posting a comment opens
+// it; "Query Resolved" closes it; a later comment reopens it.
+model TimesheetQuery {
+  timesheetId  Int         @id
+  timesheet    Timesheet   @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+  status       QueryStatus @default(OPEN)
+  openedById   Int
+  openedBy     User        @relation("QueryOpenedBy", fields: [openedById], references: [id])
+  openedAt     DateTime    @default(now())
+  resolvedById Int?
+  resolvedBy   User?       @relation("QueryResolvedBy", fields: [resolvedById], references: [id])
+  resolvedAt   DateTime?
+  updatedAt    DateTime    @updatedAt
+
+  @@index([status])
+}
+
+model TimesheetComment {
+  id          Int                       @id @default(autoincrement())
+  timesheetId Int
+  timesheet   Timesheet                 @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+  authorId    Int
+  author      User                      @relation("CommentAuthor", fields: [authorId], references: [id])
+  body        String                    @db.Text
+  createdAt   DateTime                  @default(now())
+  mentions    TimesheetCommentMention[]
+
+  @@index([timesheetId])
+}
+
+model TimesheetCommentMention {
+  commentId Int
+  comment   TimesheetComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User             @relation("MentionedUser", fields: [userId], references: [id])
+
+  @@id([commentId, userId])
+  @@index([userId])
 }

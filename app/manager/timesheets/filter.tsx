@@ -24,6 +24,7 @@ export function TimesheetsFilter({
   const [userId, setUserId] = useState(initial.userId ?? "");
   const [from, setFrom] = useState(initial.from ?? "");
   const [to, setTo] = useState(initial.to ?? "");
+  const [query, setQuery] = useState(initial.query ?? "");
 
   function apply() {
     const sp = new URLSearchParams();
@@ -32,11 +33,12 @@ export function TimesheetsFilter({
     if (userId) sp.set("userId", userId);
     if (from) sp.set("from", from);
     if (to) sp.set("to", to);
+    if (query) sp.set("query", query);
     router.push(`/manager/timesheets?${sp.toString()}`);
   }
 
   function clear() {
-    setStatus(""); setClientId(""); setUserId(""); setFrom(""); setTo("");
+    setStatus(""); setClientId(""); setUserId(""); setFrom(""); setTo(""); setQuery("");
     router.push("/manager/timesheets");
   }
 
@@ -46,13 +48,12 @@ export function TimesheetsFilter({
         <Filter className="h-4 w-4 text-slate-500" />
         <span className="text-sm font-semibold text-slate-700">Filters</span>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
         <div>
           <Label className="mb-1 block">Status</Label>
           <Select value={status} onValueChange={setStatus}>
             <SelectTrigger><SelectValue placeholder="Any status" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="DRAFT">Draft</SelectItem>
               <SelectItem value="SUBMITTED">Submitted</SelectItem>
               <SelectItem value="APPROVED">Approved</SelectItem>
               <SelectItem value="REJECTED">Rejected</SelectItem>
@@ -92,6 +93,17 @@ export function TimesheetsFilter({
         <div>
           <Label className="mb-1 block">To</Label>
           <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+        </div>
+        <div>
+          <Label className="mb-1 block">Staff query</Label>
+          <Select value={query} onValueChange={setQuery}>
+            <SelectTrigger><SelectValue placeholder="Any" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="open">Open queries</SelectItem>
+              <SelectItem value="mine">Open, tagged me</SelectItem>
+              <SelectItem value="resolved">Resolved</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex items-end gap-2">
           <Button onClick={apply} className="flex-1">Apply</Button>

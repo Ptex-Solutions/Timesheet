@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Building2, Clock, Users, FileSpreadsheet, ArrowRight, BarChart3, LayoutDashboard } from "lucide-react";
+import { Building2, Clock, Users, FileSpreadsheet, ArrowRight, BarChart3, LayoutDashboard, MessageSquareWarning } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentAccess } from "@/lib/authz";
 import { Topbar } from "@/components/shared/topbar";
@@ -20,14 +20,16 @@ async function loadTimesheetKpis() {
 
   const [monthHours, pending, byClient, recent] = await Promise.all([
     prisma.timesheet.aggregate({
-      where: { date: { gte: monthStart, lt: monthEnd } },
+      // Drafts are the employee's own work in progress, not shown to staff.
+      where: { date: { gte: monthStart, lt: monthEnd }, status: { not: "DRAFT" } },
       _sum: { hours: true },
       _count: true,
     }),
     prisma.timesheet.count({ where: { status: "SUBMITTED" } }),
     prisma.timesheet.groupBy({
       by: ["clientId"],
-      where: { date: { gte: monthStart, lt: monthEnd } },
+      // Drafts are the employee's own work in progress, not shown to staff.
+      where: { date: { gte: monthStart, lt: monthEnd }, status: { not: "DRAFT" } },
       _sum: { hours: true },
     }),
     prisma.timesheet.findMany({
@@ -71,10 +73,25 @@ export default async function ManagerDashboard() {
   const canClients = perms.has("clients.view");
 
   // Only query what the viewer may see — never fetch then hide.
-  const [kpis, activeUsers] = await Promise.all([
+  const [kpis, activeUsers, queries] = await Promise.all([
     canTimesheets ? loadTimesheetKpis() : Promise.resolve(null),
     canEmployees
       ? prisma.user.count({ where: { isActive: true, role: "EMPLOYEE" } })
+      : Promise.resolve(null),
+    // Open staff queries (drafts excluded) and those that tag this user.
+    canTimesheets
+      ? Promise.all([
+          prisma.timesheetQuery.count({ where: { status: "OPEN", timesheet: { status: { not: "DRAFT" } } } }),
+          prisma.timesheetQuery.count({
+            where: {
+              status: "OPEN",
+              timesheet: {
+                status: { not: "DRAFT" },
+                comments: { some: { mentions: { some: { userId: access.user.id } } } },
+              },
+            },
+          }),
+        ]).then(([open, mine]) => ({ open, mine }))
       : Promise.resolve(null),
   ]);
 
@@ -123,6 +140,35 @@ export default async function ManagerDashboard() {
                 Your account doesn&apos;t have access to any dashboard modules yet. Ask an administrator to grant
                 you the permissions you need.
               </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {queries && queries.open > 0 && (
+          <Card className="mb-6 border-amber-300 bg-amber-50/60">
+            <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+              <div className="flex items-center gap-3">
+                <MessageSquareWarning className="h-5 w-5 text-amber-600" />
+                <p className="text-sm text-amber-900">
+                  <span className="font-semibold">{queries.open}</span> timesheet {queries.open === 1 ? "entry has" : "entries have"} an open staff query
+                  {queries.mine > 0 && (
+                    <>
+                      {" "}· <span className="font-semibold">{queries.mine}</span> tag you
+                    </>
+                  )}
+                  .
+                </p>
+              </div>
+              <div className="flex gap-2">
+                {queries.mine > 0 && (
+                  <Button size="sm" asChild>
+                    <Link href="/manager/timesheets?query=mine">View mine</Link>
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" asChild>
+                  <Link href="/manager/timesheets?query=open">All open queries</Link>
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}
