@@ -34,10 +34,10 @@ export default function LoginPage() {
       // Determine destination by reading session
       const sess = await fetch("/api/auth/session").then((r) => r.json());
       const role = sess?.user?.role;
-      const dest = from && from.startsWith("/employee") || from && from.startsWith("/manager")
+      const dest = from && from.startsWith("/employee") || from && from.startsWith("/admin")
         ? from
         : isStaffRole(role)
-        ? "/manager/dashboard"
+        ? "/admin/dashboard"
         : "/employee/dashboard";
       router.push(dest);
       router.refresh();
@@ -48,10 +48,16 @@ export default function LoginPage() {
     }
   }
 
-  function fill(role: "manager" | "employee") {
+  function fill(role: "manager" | "employee" | "super_admin" | "admin") {
     if (role === "manager") {
-      setEmail("himanshu@ptexsolutions.com");
+      setEmail("sgawade@ptexsolutions.com");
       setPassword("Manager@123");
+    } else if (role === "super_admin") {
+      setEmail("superadmin@ptexsolutions.com");
+      setPassword("Admin@123");
+    }else if (role === "admin") {
+      setEmail("himanshu@ptexsolutions.com");
+      setPassword("Admin@123");
     } else {
       setEmail("tqureshi@ptexsolutions.com");
       setPassword("Taha@123");
@@ -126,10 +132,16 @@ export default function LoginPage() {
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Demo accounts</p>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => fill("manager")} type="button">
-            Use Manager
+            Manager
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => fill("admin")} type="button">
+            Admin
           </Button>
           <Button variant="outline" size="sm" onClick={() => fill("employee")} type="button">
-            Use Employee
+            Employee
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => fill("super_admin")} type="button">
+            Super Admin
           </Button>
         </div>
       </div>
