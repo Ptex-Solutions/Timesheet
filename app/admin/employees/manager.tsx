@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, Trash2, UserPlus, ShieldOff } from "lucide-react";
+import { Loader2, Pencil, RotateCcw, Trash2, UserPlus, ShieldOff } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -55,7 +55,26 @@ export function EmployeesManager({
     if (r.ok) {
       toast.success("Deactivated");
       router.refresh();
-    } else toast.error("Failed");
+    } else {
+      const j = await r.json().catch(() => ({}));
+      toast.error(j.error || "Failed");
+    }
+  }
+
+  // Reactivation is an edit (employees.edit), not a delete.
+  async function reactivate(id: number) {
+    const r = await fetch("/api/users", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, isActive: true }),
+    });
+    if (r.ok) {
+      toast.success("Reactivated — they can sign in again");
+      router.refresh();
+    } else {
+      const j = await r.json().catch(() => ({}));
+      toast.error(j.error || "Failed");
+    }
   }
 
   return (
@@ -87,6 +106,7 @@ export function EmployeesManager({
               const manageable = canManageRole(actorRole, u.role);
               const showEdit = canEdit && (isSelf || manageable);
               const showDeactivate = canDelete && !isSelf && manageable && u.isActive;
+              const showReactivate = canEdit && !isSelf && manageable && !u.isActive;
               return (
                 <tr key={u.id}>
                   <td>
@@ -117,6 +137,17 @@ export function EmployeesManager({
                       {showDeactivate && (
                         <Button size="icon" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => deactivate(u.id)}>
                           <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      {showReactivate && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-emerald-700 hover:bg-emerald-50"
+                          title="Mark active again"
+                          onClick={() => reactivate(u.id)}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" /> Reactivate
                         </Button>
                       )}
                     </div>
