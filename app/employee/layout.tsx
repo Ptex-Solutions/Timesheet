@@ -1,4 +1,5 @@
 "use client";
+export const dynamic = "force-dynamic";
 import { Sidebar, type NavItem } from "@/components/shared/sidebar";
 import { LayoutDashboard, FileSpreadsheet, PlusCircle, UserCircle } from "lucide-react";
 
