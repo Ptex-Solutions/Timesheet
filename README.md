@@ -7,7 +7,7 @@ Two completely isolated portals — `/employee` for employees and `/admin` for s
 | Role            | Portal   | Default capabilities |
 |-----------------|----------|----------------------|
 | **Employee**    | Employee | Submit / view their own timesheets only |
-| **Admin**       | Admin    | Timesheets (view/edit/delete/approve/re-open), sandbox MIS, MIS reports, masters & activities, employees |
+| **Admin**       | Admin    | Timesheets (view/approve/re-open), sandbox MIS, MIS reports, masters, activities, employees |
 | **Manager**     | Admin    | Everything an Admin has, plus the Access Panel; manages Admins |
 | **Super Admin** | Admin    | Full access; permissions can't be restricted. The last active Super Admin can't be demoted or deactivated |
 

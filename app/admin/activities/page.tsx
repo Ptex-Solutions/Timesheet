@@ -8,7 +8,7 @@ import { ActivitiesPanel, type MasterOption, type MastersByType } from "./manage
 
 export default async function ActivitiesPage() {
   const access = await getCurrentAccess();
-  if (!access || !access.perms.has("clients.view")) redirect("/admin/dashboard");
+  if (!access || !access.perms.has("activities.view")) redirect("/admin/dashboard");
 
   const [masterRows, activities] = await Promise.all([
     prisma.master.findMany({
@@ -60,8 +60,8 @@ export default async function ActivitiesPage() {
             })),
           }))}
           masters={masters}
-          canEdit={access.perms.has("clients.edit")}
-          canDelete={access.perms.has("clients.delete")}
+          canEdit={access.perms.has("activities.edit")}
+          canDelete={access.perms.has("activities.delete")}
         />
       </div>
     </>

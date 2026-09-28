@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const access = await requirePermission("clients.edit");
+  const access = await requirePermission("activities.edit");
   if (access instanceof NextResponse) return access;
   const { user } = access;
   const json = await readJsonBody(req);
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const access = await requirePermission("clients.edit");
+  const access = await requirePermission("activities.edit");
   if (access instanceof NextResponse) return access;
   const { user } = access;
   const json = await readJsonBody(req);
@@ -68,7 +68,7 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const access = await requirePermission("clients.delete");
+  const access = await requirePermission("activities.delete");
   if (access instanceof NextResponse) return access;
   const { user } = access;
   const id = parseId(req.nextUrl.searchParams.get("id"));

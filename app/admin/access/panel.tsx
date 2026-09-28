@@ -311,7 +311,13 @@ export function AccessPanel({
                     <TableCell className="font-medium text-navy">{m.label}</TableCell>
                     {BASE_ACTIONS.map((a) => (
                       <TableCell key={a} className="text-center">
-                        {moduleHas(m, a) ? permCheckbox(perm(m.key, a)) : null}
+                        {moduleHas(m, a) ? (
+                          permCheckbox(perm(m.key, a))
+                        ) : (
+                          <span className="text-[11px] font-medium text-slate-300" title="Not applicable for this module">
+                            N/A
+                          </span>
+                        )}
                       </TableCell>
                     ))}
                     <TableCell>

@@ -6,7 +6,7 @@ import { MastersPanel } from "./panel";
 
 export default async function MastersPage() {
   const access = await getCurrentAccess();
-  if (!access || !access.perms.has("clients.view")) redirect("/admin/dashboard");
+  if (!access || !access.perms.has("masters.view")) redirect("/admin/dashboard");
 
   return (
     <>
@@ -17,8 +17,8 @@ export default async function MastersPage() {
           description="Manage the code lists used to build Activities: Type, Client, Product, Version, Module, Cloud / On Prem."
         />
         <MastersPanel
-          canEdit={access.perms.has("clients.edit")}
-          canDelete={access.perms.has("clients.delete")}
+          canEdit={access.perms.has("masters.edit")}
+          canDelete={access.perms.has("masters.delete")}
         />
       </div>
     </>

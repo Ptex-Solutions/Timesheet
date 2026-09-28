@@ -35,10 +35,15 @@ test("ACTION_LABELS and BASE_ACTIONS are as specified", () => {
 
 test("MODULES catalogue order and contents", () => {
   const keys = MODULES.map((m) => m.key);
-  assert.deepEqual(keys, ["timesheets", "mis", "clients", "sandbox", "employees", "access"]);
+  assert.deepEqual(keys, ["timesheets", "mis", "masters", "activities", "sandbox", "employees", "access"]);
 
+  // Staff never edit or delete timesheet records, so those actions don't exist.
   const timesheets = MODULES.find((m) => m.key === "timesheets")!;
-  assert.deepEqual(timesheets.actions, ["view", "edit", "delete", "approve", "reopen"]);
+  assert.deepEqual(timesheets.actions, ["view", "approve", "reopen"]);
+
+  for (const key of ["masters", "activities"] as const) {
+    assert.deepEqual(MODULES.find((m) => m.key === key)!.actions, ["view", "edit", "delete"]);
+  }
 
   const mis = MODULES.find((m) => m.key === "mis")!;
   assert.deepEqual(mis.actions, ["view", "edit", "delete", "finalize"]);
@@ -56,8 +61,14 @@ test("Permission type distributes per module (compile-time guard)", () => {
   const invalid1: Permission = "sandbox.finalize";
   // @ts-expect-error "approve" is not an access action.
   const invalid2: Permission = "access.approve";
+  // @ts-expect-error timesheets has no edit/delete.
+  const invalid3: Permission = "timesheets.edit";
+  // @ts-expect-error the old combined "clients" module is gone.
+  const invalid4: Permission = "clients.view";
   void invalid1;
   void invalid2;
+  void invalid3;
+  void invalid4;
 });
 
 test("isPermission validates catalogue-derived permissions", () => {
@@ -110,10 +121,10 @@ test("grant override adds a permission beyond role defaults (ADMIN + access.view
   assert.equal(perms.has("access.edit"), false);
 });
 
-test("revoke override removes a role default (ADMIN - timesheets.delete)", () => {
-  const overrides: PermissionOverride[] = [{ module: "timesheets", action: "delete", granted: false }];
+test("revoke override removes a role default (ADMIN - sandbox.delete)", () => {
+  const overrides: PermissionOverride[] = [{ module: "sandbox", action: "delete", granted: false }];
   const perms = resolvePermissions("ADMIN", overrides);
-  assert.equal(perms.has("timesheets.delete"), false);
+  assert.equal(perms.has("sandbox.delete"), false);
   assert.equal(perms.has("timesheets.view"), true);
 });
 
@@ -149,7 +160,7 @@ test("unknown override module/action keys are ignored", () => {
 test("diffOverrides -> resolvePermissions round trip for ADMIN", () => {
   const defaults = roleDefaults("ADMIN");
   const desired = new Set<Permission>([...defaults]);
-  desired.delete("timesheets.delete");
+  desired.delete("sandbox.delete");
   desired.add("access.view");
 
   const overrides = diffOverrides("ADMIN", desired);
@@ -285,6 +296,6 @@ test("STAFF_ROLES, ROLE_LABELS, ROLE_RANK are as specified", () => {
 test("hasPermission works with Set and array", () => {
   const set = new Set<Permission>(["timesheets.view"]);
   assert.equal(hasPermission(set, "timesheets.view"), true);
-  assert.equal(hasPermission(set, "timesheets.edit"), false);
+  assert.equal(hasPermission(set, "timesheets.approve"), false);
   assert.equal(hasPermission(["timesheets.view"] as const, "timesheets.view"), true);
 });

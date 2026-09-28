@@ -12,15 +12,15 @@ const IMMUTABLE_MESSAGE =
 
 export async function GET(req: NextRequest) {
   // Any signed-in, active user (employees need this for timesheet dropdowns);
-  // mutations below stay gated on clients.edit / clients.delete. Callers
-  // without clients.view only see active activities and active tasks.
+  // mutations below stay gated on activities.edit / activities.delete. Callers
+  // without activities.view only see active activities and active tasks.
   const access = await getCurrentAccess();
   if (!access) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   // Callers can force active-only rows regardless of their permission level
   // (e.g. an employee timesheet form should never surface inactive activities,
-  // even for a staff member with clients.view browsing their own timesheet).
+  // even for a staff member with activities.view browsing their own timesheet).
   const forceActive = req.nextUrl.searchParams.get("active") === "1";
-  const isAdminView = !forceActive && access.perms.has("clients.view");
+  const isAdminView = !forceActive && access.perms.has("activities.view");
 
   const clientIdParam = req.nextUrl.searchParams.get("clientId");
   let clientId: number | undefined;
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const access = await requirePermission("clients.edit");
+  const access = await requirePermission("activities.edit");
   if (access instanceof NextResponse) return access;
   const { user } = access;
 
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const access = await requirePermission("clients.edit");
+  const access = await requirePermission("activities.edit");
   if (access instanceof NextResponse) return access;
   const { user } = access;
 
@@ -123,7 +123,7 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const access = await requirePermission("clients.delete");
+  const access = await requirePermission("activities.delete");
   if (access instanceof NextResponse) return access;
   const { user } = access;
 

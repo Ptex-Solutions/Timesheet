@@ -70,7 +70,8 @@ export default async function ManagerDashboard() {
   const canGenerateMis = perms.has("mis.edit");
   const canViewMis = perms.has("mis.view");
   const canEmployees = perms.has("employees.view");
-  const canClients = perms.has("clients.view");
+  const canMasters = perms.has("masters.view");
+  const canActivities = perms.has("activities.view");
 
   // Only query what the viewer may see — never fetch then hide.
   const [kpis, activeUsers, queries] = await Promise.all([
@@ -96,7 +97,7 @@ export default async function ManagerDashboard() {
   ]);
 
   const hasStats = kpis !== null || activeUsers !== null;
-  const hasQuickLinks = canTimesheets || canSandbox || canEmployees || canClients;
+  const hasQuickLinks = canTimesheets || canSandbox || canEmployees || canMasters || canActivities;
   const hasHeaderActions = canSandbox || canGenerateMis || canViewMis;
   const nothingVisible = !hasStats && !hasQuickLinks && !hasHeaderActions;
 
@@ -227,9 +228,14 @@ export default async function ManagerDashboard() {
                       <Link href="/admin/employees"><Users className="h-4 w-4" /> Employees</Link>
                     </Button>
                   )}
-                  {canClients && (
+                  {canMasters && (
                     <Button asChild className="w-full justify-start" variant="outline">
-                      <Link href="/admin/activities"><Building2 className="h-4 w-4" /> Masters & Activities</Link>
+                      <Link href="/admin/masters"><Building2 className="h-4 w-4" /> Masters</Link>
+                    </Button>
+                  )}
+                  {canActivities && (
+                    <Button asChild className="w-full justify-start" variant="outline">
+                      <Link href="/admin/activities"><Building2 className="h-4 w-4" /> Activities</Link>
                     </Button>
                   )}
                 </CardContent>

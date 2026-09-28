@@ -45,7 +45,7 @@ export function TimesheetForm({
   const [description, setDescription] = useState<string>(initial?.description ?? "");
   const [submitting, setSubmitting] = useState<"draft" | "submit" | null>(null);
 
-  // Explicitly request active-only rows so a staff member with clients.view
+  // Explicitly request active-only rows so a staff member with masters.view / activities.view
   // filling out their own employee timesheet never sees inactive masters /
   // activities (which would 400 on save).
   const { data: clientsData } = useQuery({

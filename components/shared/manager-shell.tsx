@@ -23,8 +23,8 @@ const ITEMS: (NavItem & { perm: Permission | null })[] = [
   { href: "/admin/sandbox", label: "Sandbox MIS", icon: Beaker, perm: "sandbox.view" },
   { href: "/admin/mis", label: "MIS Reports", icon: BarChart3, perm: "mis.view" },
   { href: "/admin/employees", label: "Employees", icon: Users, perm: "employees.view" },
-  { href: "/admin/masters", label: "Masters", icon: Building2, perm: "clients.view" },
-  { href: "/admin/activities", label: "Activities", icon: Layers, perm: "clients.view" },
+  { href: "/admin/masters", label: "Masters", icon: Building2, perm: "masters.view" },
+  { href: "/admin/activities", label: "Activities", icon: Layers, perm: "activities.view" },
   { href: "/admin/access", label: "Access Panel", icon: ShieldCheck, perm: "access.view" },
   { href: "/admin/settings", label: "Settings", icon: Settings, perm: null },
 ];

@@ -47,9 +47,11 @@ export const BASE_ACTIONS: readonly Action[] = ["view", "edit", "delete"];
 
 export const MODULES = [
   {
+    // No edit/delete: staff never change or remove employees' timesheet
+    // records (employees edit/delete only their own drafts, by ownership).
     key: "timesheets",
     label: "Timesheets",
-    actions: ["view", "edit", "delete", "approve", "reopen"],
+    actions: ["view", "approve", "reopen"],
   },
   {
     key: "mis",
@@ -57,8 +59,14 @@ export const MODULES = [
     actions: ["view", "edit", "delete", "finalize"],
   },
   {
-    key: "clients",
-    label: "Masters & Activities",
+    key: "masters",
+    label: "Masters",
+    actions: ["view", "edit", "delete"],
+  },
+  {
+    // Activities and their Tasks.
+    key: "activities",
+    label: "Activities",
     actions: ["view", "edit", "delete"],
   },
   {

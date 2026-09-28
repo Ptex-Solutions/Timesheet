@@ -79,7 +79,8 @@ export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
     if (ts.status !== "SUBMITTED") {
       return NextResponse.json({ error: "Only SUBMITTED timesheets can be approved or rejected" }, { status: 400 });
     }
-    if (hasFieldEdits && !perms.has("timesheets.edit")) return forbidden("Forbidden: missing timesheets.edit");
+    // A decision never changes the entry itself.
+    if (hasFieldEdits) return badRequest("Approve or reject without changing the entry");
   } else {
     // --- Field edits and/or DRAFT/SUBMITTED status --------------------------
     if (ts.status === "APPROVED") {
@@ -88,9 +89,10 @@ export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
     // Owners may fix their own DRAFT entries, and REJECTED ones so they can
     // correct and resubmit them. Status here can only be DRAFT or SUBMITTED
     // (APPROVED/REJECTED take the decision branch above).
+    // Nobody else — whatever their role — edits an employee's entry.
     const ownerEditable = isOwner && (ts.status === "DRAFT" || ts.status === "REJECTED");
-    if (!ownerEditable && !perms.has("timesheets.edit")) {
-      return forbidden(isOwner ? "Only DRAFT or REJECTED timesheets can be edited" : "Forbidden");
+    if (!ownerEditable) {
+      return forbidden(isOwner ? "Only DRAFT or REJECTED timesheets can be edited" : "Only the employee can edit their entry");
     }
   }
 
@@ -158,10 +160,11 @@ export async function DELETE(_req: NextRequest, ctx: { params: { id: string } })
   const id = parseInt(ctx.params.id, 10);
   const a = await loadTimesheet(id);
   if ("error" in a) return a.error;
-  const { user, perms, ts, isOwner } = a;
+  const { user, ts, isOwner } = a;
 
-  if (!(isOwner && ts.status === "DRAFT") && !perms.has("timesheets.delete")) {
-    return forbidden(isOwner ? "Only DRAFT timesheets can be deleted" : "Forbidden");
+  // Only the employee can delete, and only their own drafts.
+  if (!(isOwner && ts.status === "DRAFT")) {
+    return forbidden(isOwner ? "Only DRAFT timesheets can be deleted" : "Only the employee can delete their draft");
   }
 
   await prisma.timesheet.delete({ where: { id } });
