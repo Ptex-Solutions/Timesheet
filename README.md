@@ -32,37 +32,22 @@ Employees can never see anything staff edit in the sandbox — sandbox data live
 
 ## Getting started
 
-### 1. Install dependencies
+**Full step-by-step guide: [SETUP.md](SETUP.md).** Short version (needs Node 18.17+ and Docker Desktop running):
 
 ```bash
 npm install
+npm run dev:up
 ```
 
-### 2. Configure your `.env`
+`dev:up` does the following:
 
-Copy `.env.example` to `.env` and adjust:
+1. Creates `.env` with random secrets, if it's missing.
+2. Starts a MySQL 8 container (`docker-compose.yml`, host port 3307), unless the database in `DATABASE_URL` is already reachable.
+3. Applies migrations.
+4. Seeds demo data, but only into an empty database.
+5. Starts the dev server.
 
-```env
-DATABASE_URL="mysql://root:password@localhost:3306/ptex_db"
-NEXTAUTH_SECRET="replace-with-32-plus-character-random-string"
-AUTH_SECRET="same-as-NEXTAUTH_SECRET"
-NEXTAUTH_URL="http://localhost:3000"
-AUTH_TRUST_HOST="true"
-BCRYPT_ROUNDS=12
-```
-
-### 3. Run migrations and seed
-
-```bash
-npm run prisma:push     # creates tables in MySQL
-npm run prisma:seed     # seeds masters, activities, tasks, demo users
-```
-
-### 4. Start the dev server
-
-```bash
-npm run dev
-```
+To use a MySQL you already run, set `DATABASE_URL` in `.env` and run the same command.
 
 Open <http://localhost:3000> and sign in with one of the demo accounts:
 
@@ -155,10 +140,15 @@ PO Ref. | Mins | SAT | SUN | MON | TUE | WED | THU | FRI | Day Count
 
 | Command                  | Purpose                            |
 |--------------------------|------------------------------------|
-| `npm run dev`            | Start dev server (http://localhost:3000) |
+| `npm run dev:up`         | One-command setup + dev server (see SETUP.md) |
+| `npm run dev`            | Start dev server only (http://localhost:3000) |
+| `npm run db:setup`       | Setup (DB container, migrations, seed) without starting the app |
+| `npm run db:up` / `db:down` | Start / stop the Docker MySQL container |
+| `npm run db:seed`        | Add missing demo data (safe to re-run) |
+| `npm run db:reset`       | ⚠️ Wipe the Docker database, recreate schema + demo data |
 | `npm run build`          | Generate Prisma client + production build |
 | `npm run start`          | Run the production build           |
-| `npm test`               | Run permission unit tests          |
+| `npm test`               | Run unit tests (permissions, activity codes, entry dates) |
 | `npm run prisma:push`    | Push schema to MySQL (no migration files) |
 | `npm run prisma:migrate` | Create + apply a migration         |
 | `npm run prisma:seed`    | Seed masters, activities, tasks, users |

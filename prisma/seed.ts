@@ -239,8 +239,11 @@ async function main() {
   }
 
   console.log("Seed complete:");
-  console.log(`  Admin: himanshu@ptexsolutions.com / Himanshu@123 (id ${manager.id})`);
-  console.log(`  Employee: tqureshi@ptexsolutions.com / Taha@123 (id ${taha.id})`);
+  console.log("  Super Admin: superadmin@ptexsolutions.com / Admin@123");
+  console.log("  Manager:     admin@ptexsolutions.com      / Admin@123");
+  console.log(`  Admin:       himanshu@ptexsolutions.com   / Manager@123 (id ${manager.id})`);
+  console.log(`  Employee:    tqureshi@ptexsolutions.com   / Taha@123    (id ${taha.id})`);
+  console.log("  Employees:   kv@ptex.com, sk@ptex.com     / Taha@123");
 }
 
 main()

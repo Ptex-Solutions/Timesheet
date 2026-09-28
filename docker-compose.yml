@@ -1,0 +1,31 @@
+# Local development database for Ptex Timesheet.
+#
+# Started automatically by `npm run dev:up` when the database in .env isn't
+# reachable. You can also manage it directly: `npm run db:up` / `db:down`.
+#
+# Published on host port 3307 (not 3306) so it never clashes with a MySQL
+# already installed on the machine (XAMPP, MySQL Server, ...).
+services:
+  db:
+    image: mysql:8.4
+    container_name: ptex-timesheet-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ptex_db
+      MYSQL_USER: ptex
+      MYSQL_PASSWORD: ptex_dev_password
+      MYSQL_ROOT_PASSWORD: ptex_root_password
+      TZ: Asia/Kolkata
+    ports:
+      - "${DB_PORT:-3307}:3306"
+    volumes:
+      - ptex-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+      start_period: 10s
+
+volumes:
+  ptex-db-data:

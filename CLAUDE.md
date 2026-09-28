@@ -9,6 +9,8 @@ Ptex Timesheet & MIS dashboard: Next.js 14 App Router + TypeScript + Prisma (MyS
 ## Commands
 
 ```bash
+npm run dev:up           # one-command setup (scripts/dev-up.mjs, guide in SETUP.md): .env, Docker MySQL if DATABASE_URL unreachable, migrate deploy, seed-if-empty, next dev
+npm run db:setup         # same without starting next dev; also db:up / db:down / db:seed / db:reset (⚠️ wipes the Docker volume)
 npm run dev              # dev server on http://localhost:3000
 npm run build            # prisma generate + next build
 npm run start            # run production build (or `node server.js`, custom HTTP server on :3000, dev:false)

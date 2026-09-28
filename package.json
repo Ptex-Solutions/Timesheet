@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:up": "node scripts/dev-up.mjs",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
@@ -12,7 +13,13 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",
     "prisma:seed": "tsx prisma/seed.ts",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose stop db",
+    "db:setup": "node scripts/dev-up.mjs --no-dev",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:reset": "docker compose down -v && node scripts/dev-up.mjs --no-dev",
+    "db:logs": "docker logs -f ptex-timesheet-db"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
