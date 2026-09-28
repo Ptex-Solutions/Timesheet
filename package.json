@@ -7,7 +7,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --import tsx --test lib/permissions.test.ts lib/activity-code.test.ts",
+    "test": "node --import tsx --test lib/permissions.test.ts lib/activity-code.test.ts lib/entry-date.test.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",

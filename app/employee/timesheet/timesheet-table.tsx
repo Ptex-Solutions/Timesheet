@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusPill } from "@/components/ui/status-pill";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDate, isoYearWeek, weekLabelForDate } from "@/lib/utils";
+import { FULL_DAY_HOURS, defaultEntryDate, localTodayIso } from "@/lib/entry-date";
 import { TimesheetActions } from "./actions";
 
 export type TimesheetRow = {
@@ -43,9 +44,15 @@ type Activity = {
   tasks: Array<{ id: number; taskId: string; taskName: string; poRef: string | null }>;
 };
 
+// An editable row: either a new entry (no editId) or an existing DRAFT /
+// REJECTED entry being edited in place (editId = its timesheet id).
 type Draft = {
   key: number;
-  date: string;
+  editId?: number;
+  // For in-place edits: labels for the stored refs, so the selects still show
+  // them if the activity/task has since been deactivated (not in the list).
+  stored?: { clientId: number; clientCode: string; activityId: number; activityCode: string; taskId: number; taskCode: string; typeCode: string };
+  date: string; // YYYY-MM-DD
   clientId: number | null;
   activityId: number | null;
   taskId: number | null;
@@ -57,23 +64,35 @@ type Draft = {
 
 type Prefill = Partial<Pick<Draft, "clientId" | "activityId" | "taskId" | "hours" | "description">>;
 
-// Local calendar date (toISOString would give the UTC date, i.e. yesterday in
-// IST before 05:30).
-const todayIso = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
+// Default date for a new row: the latest date already logged (saved entries
+// plus rows still being added), or the next day once that date is full.
+function smartDefaultDate(rows: TimesheetRow[], drafts: Draft[]): string {
+  const editing = new Set(drafts.map((d) => d.editId).filter(Boolean));
+  return defaultEntryDate(
+    [
+      ...rows.filter((r) => !editing.has(r.id)).map((r) => ({ date: r.date.slice(0, 10), hours: r.hours })),
+      ...drafts.map((d) => ({ date: d.date, hours: Number(d.hours) })),
+    ],
+    localTodayIso()
+  );
+}
 
 let nextKey = 1;
+
+const blankDraft = (date: string): Draft => ({
+  key: nextKey++,
+  date,
+  clientId: null,
+  activityId: null,
+  taskId: null,
+  hours: "",
+  description: "",
+});
 
 export function TimesheetTable({ rows, autoAdd = false }: { rows: TimesheetRow[]; autoAdd?: boolean }) {
   const router = useRouter();
   // ?add=1 (dashboard "New Entry" links) opens with one blank row.
-  const [drafts, setDrafts] = useState<Draft[]>(() =>
-    autoAdd
-      ? [{ key: nextKey++, date: todayIso(), clientId: null, activityId: null, taskId: null, hours: "", description: "" }]
-      : []
-  );
+  const [drafts, setDrafts] = useState<Draft[]>(() => (autoAdd ? [blankDraft(smartDefaultDate(rows, []))] : []));
   const [bulkBusy, setBulkBusy] = useState(false);
 
   // One request covers the whole Client → Activity → Task cascade. active=1
@@ -94,6 +113,9 @@ export function TimesheetTable({ rows, autoAdd = false }: { rows: TimesheetRow[]
     return [...byId.values()].sort((a, b) => a.code.localeCompare(b.code));
   }, [activities]);
 
+  const newDrafts = drafts.filter((d) => d.editId == null);
+  const editDraftFor = (id: number) => drafts.find((d) => d.editId === id);
+
   function addDraft(prefill: Prefill = {}) {
     const activity = activities.find((a) => a.id === prefill.activityId);
     // Only keep prefilled refs that are still active (a cloned entry may point
@@ -101,8 +123,7 @@ export function TimesheetTable({ rows, autoAdd = false }: { rows: TimesheetRow[]
     const task = activity?.tasks.find((t) => t.id === prefill.taskId);
     setDrafts((d) => [
       {
-        key: nextKey++,
-        date: todayIso(),
+        ...blankDraft(smartDefaultDate(rows, d)),
         clientId: activity ? activity.clientId : prefill.clientId ?? null,
         activityId: activity ? activity.id : null,
         taskId: task ? task.id : null,
@@ -110,6 +131,32 @@ export function TimesheetTable({ rows, autoAdd = false }: { rows: TimesheetRow[]
         description: prefill.description ?? "",
       },
       ...d,
+    ]);
+  }
+
+  function startEdit(r: TimesheetRow) {
+    if (editDraftFor(r.id)) return;
+    setDrafts((d) => [
+      ...d,
+      {
+        key: nextKey++,
+        editId: r.id,
+        stored: {
+          clientId: r.clientId,
+          clientCode: r.clientCode,
+          activityId: r.activityId,
+          activityCode: r.activityCode,
+          taskId: r.taskId,
+          taskCode: r.taskCode,
+          typeCode: r.type,
+        },
+        date: r.date.slice(0, 10),
+        clientId: r.clientId,
+        activityId: r.activityId,
+        taskId: r.taskId,
+        hours: String(r.hours),
+        description: r.description,
+      },
     ]);
   }
 
@@ -130,7 +177,8 @@ export function TimesheetTable({ rows, autoAdd = false }: { rows: TimesheetRow[]
     return null;
   }
 
-  // Saves one draft; returns true on success. Does not refresh the page.
+  // Saves one row (POST for new, PUT for an in-place edit); returns true on
+  // success. Does not refresh the page.
   async function saveDraft(d: Draft, status: "DRAFT" | "SUBMITTED"): Promise<boolean> {
     const problem = validate(d);
     if (problem) {
@@ -139,8 +187,8 @@ export function TimesheetTable({ rows, autoAdd = false }: { rows: TimesheetRow[]
     }
     setDrafts((all) => all.map((x) => (x.key === d.key ? { ...x, saving: true, error: undefined } : x)));
     try {
-      const r = await fetch("/api/timesheets", {
-        method: "POST",
+      const r = await fetch(d.editId ? `/api/timesheets/${d.editId}` : "/api/timesheets", {
+        method: d.editId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           date: d.date,
@@ -190,23 +238,38 @@ export function TimesheetTable({ rows, autoAdd = false }: { rows: TimesheetRow[]
     else toast.error(`${ok} saved, ${failed} need attention — see the highlighted rows`);
   }
 
-  function cloneRow(r: TimesheetRow) {
+  function cloneFrom(src: { clientId: number | null; activityId: number | null; taskId: number | null; hours: string; description: string }) {
     addDraft({
-      clientId: r.clientId,
-      activityId: r.activityId,
-      taskId: r.taskId,
-      hours: String(r.hours),
-      description: r.description,
+      clientId: src.clientId ?? undefined,
+      activityId: src.activityId ?? undefined,
+      taskId: src.taskId ?? undefined,
+      hours: src.hours,
+      description: src.description,
     });
   }
 
   const busy = bulkBusy || drafts.some((d) => d.saving);
+
+  const renderDraft = (d: Draft) => (
+    <DraftRow
+      key={d.key}
+      draft={d}
+      clients={clients}
+      activities={activities}
+      disabled={bulkBusy}
+      onChange={(patch) => updateDraft(d.key, patch)}
+      onSave={(status) => saveOne(d, status)}
+      onClone={() => cloneFrom(d)}
+      onRemove={() => removeDraft(d.key)}
+    />
+  );
 
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <p className="text-xs text-slate-500">
           Add rows directly in the table, or clone an existing entry — only change the date, hours and description.
+          New rows start on your last logged date, or the next day once it has {FULL_DAY_HOURS}h.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {drafts.length > 0 && (
@@ -243,29 +306,9 @@ export function TimesheetTable({ rows, autoAdd = false }: { rows: TimesheetRow[]
             </tr>
           </thead>
           <tbody>
-            {drafts.map((d) => (
-              <DraftRow
-                key={d.key}
-                draft={d}
-                clients={clients}
-                activities={activities}
-                disabled={bulkBusy}
-                onChange={(patch) => updateDraft(d.key, patch)}
-                onSave={(status) => saveOne(d, status)}
-                onClone={() =>
-                  addDraft({
-                    clientId: d.clientId ?? undefined,
-                    activityId: d.activityId ?? undefined,
-                    taskId: d.taskId ?? undefined,
-                    hours: d.hours,
-                    description: d.description,
-                  })
-                }
-                onRemove={() => removeDraft(d.key)}
-              />
-            ))}
+            {newDrafts.map(renderDraft)}
 
-            {rows.length === 0 && drafts.length === 0 && (
+            {rows.length === 0 && newDrafts.length === 0 && (
               <tr>
                 <td colSpan={10} className="text-center py-12 text-slate-400">
                   No timesheets yet.
@@ -280,46 +323,62 @@ export function TimesheetTable({ rows, autoAdd = false }: { rows: TimesheetRow[]
               </tr>
             )}
 
-            {rows.map((r) => (
-              <Fragment key={r.id}>
-              <tr className={r.status === "REJECTED" ? "bg-red-50/40" : undefined}>
-                <td className="font-medium whitespace-nowrap">{formatDate(r.date)}</td>
-                <td className="text-xs text-slate-500 font-mono whitespace-nowrap">W{r.weekNo} · {r.weekLabel}</td>
-                <td><span className="font-mono text-xs">{r.clientCode}</span></td>
-                <td className="font-mono text-xs">{r.activityCode}</td>
-                <td>
-                  <p className="text-xs font-mono">{r.taskCode}</p>
-                  <p className="text-xs text-slate-500 truncate max-w-[180px]">{r.taskName}</p>
-                </td>
-                <td className="max-w-xs truncate">{r.description}</td>
-                <td className="text-right font-semibold tabular-nums">{r.hours.toFixed(2)}</td>
-                <td className="text-xs">{r.type}</td>
-                <td><StatusPill status={r.status} /></td>
-                <td>
-                  <div className="flex items-center justify-end gap-1">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      title="Clone as new row"
-                      onClick={() => cloneRow(r)}
-                      disabled={activitiesLoading}
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </Button>
-                    <TimesheetActions id={r.id} status={r.status} />
-                  </div>
-                </td>
-              </tr>
-              {r.status === "REJECTED" && (
-                <tr className="bg-red-50/40">
-                  <td colSpan={10} className="pt-0 text-xs text-red-700">
-                    <span className="font-semibold">Rejected:</span> {r.rejectionNote || "No reason given."}{" "}
-                    <span className="text-red-600/80">Edit it and resubmit.</span>
-                  </td>
-                </tr>
-              )}
-              </Fragment>
-            ))}
+            {rows.map((r) => {
+              const editing = editDraftFor(r.id);
+              if (editing) return renderDraft(editing);
+              return (
+                <Fragment key={r.id}>
+                  <tr className={r.status === "REJECTED" ? "bg-red-50/40" : undefined}>
+                    <td className="font-medium whitespace-nowrap">{formatDate(r.date)}</td>
+                    <td className="text-xs text-slate-500 font-mono whitespace-nowrap">W{r.weekNo} · {r.weekLabel}</td>
+                    <td><span className="font-mono text-xs">{r.clientCode}</span></td>
+                    <td className="font-mono text-xs">{r.activityCode}</td>
+                    <td>
+                      <p className="text-xs font-mono">{r.taskCode}</p>
+                      <p className="text-xs text-slate-500 truncate max-w-[180px]">{r.taskName}</p>
+                    </td>
+                    <td className="max-w-xs truncate">{r.description}</td>
+                    <td className="text-right font-semibold tabular-nums">{r.hours.toFixed(2)}</td>
+                    <td className="text-xs">{r.type}</td>
+                    <td><StatusPill status={r.status} /></td>
+                    <td>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          title="Clone as new row"
+                          onClick={() =>
+                            cloneFrom({
+                              clientId: r.clientId,
+                              activityId: r.activityId,
+                              taskId: r.taskId,
+                              hours: String(r.hours),
+                              description: r.description,
+                            })
+                          }
+                          disabled={activitiesLoading}
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                        </Button>
+                        <TimesheetActions
+                          id={r.id}
+                          status={r.status}
+                          onEdit={() => startEdit(r)}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                  {r.status === "REJECTED" && (
+                    <tr className="bg-red-50/40">
+                      <td colSpan={10} className="pt-0 text-xs text-red-700">
+                        <span className="font-semibold">Rejected:</span> {r.rejectionNote || "No reason given."}{" "}
+                        <span className="text-red-600/80">Edit it and resubmit.</span>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </Card>
@@ -346,10 +405,19 @@ function DraftRow({
   onClone: () => void;
   onRemove: () => void;
 }) {
+  const isEdit = draft.editId != null;
+  const s = draft.stored;
   const clientActivities = activities.filter((a) => a.clientId === draft.clientId);
   const activity = activities.find((a) => a.id === draft.activityId);
   const tasks = activity?.tasks ?? [];
   const locked = disabled || !!draft.saving;
+
+  // When editing an entry whose client/activity/task has since been
+  // deactivated, keep its stored value selectable (the server accepts it).
+  const showStoredClient = !!s && draft.clientId === s.clientId && !clients.some((c) => c.id === s.clientId);
+  const showStoredActivity = !!s && draft.activityId === s.activityId && !activity;
+  const showStoredTask = !!s && draft.taskId === s.taskId && !tasks.some((t) => t.id === s.taskId);
+  const typeCode = activity?.type.code ?? (showStoredActivity ? s?.typeCode : undefined);
 
   const week = useMemo(() => {
     if (!draft.date) return "";
@@ -357,9 +425,11 @@ function DraftRow({
     return Number.isNaN(d.getTime()) ? "" : `W${isoYearWeek(d).week} · ${weekLabelForDate(d)}`;
   }, [draft.date]);
 
+  const saveOnEnter = (e: React.KeyboardEvent) => e.key === "Enter" && !locked && onSave("DRAFT");
+
   return (
     <>
-      <tr className={draft.error ? "bg-red-50/60" : "bg-amber-50/40"}>
+      <tr className={draft.error ? "bg-red-50/60" : isEdit ? "bg-sky-50/60" : "bg-amber-50/40"}>
         <td>
           <Input
             type="date"
@@ -380,6 +450,11 @@ function DraftRow({
               <SelectValue placeholder="Client" />
             </SelectTrigger>
             <SelectContent>
+              {showStoredClient && (
+                <SelectItem value={s!.clientId.toString()}>
+                  <span className="font-mono text-xs">{s!.clientCode}</span>
+                </SelectItem>
+              )}
               {clients.map((c) => (
                 <SelectItem key={c.id} value={c.id.toString()}>
                   <span className="font-mono text-xs">{c.code}</span>
@@ -402,6 +477,11 @@ function DraftRow({
               <SelectValue placeholder={draft.clientId ? "Activity" : "Pick client"} />
             </SelectTrigger>
             <SelectContent>
+              {showStoredActivity && (
+                <SelectItem value={s!.activityId.toString()}>
+                  <span className="font-mono text-xs">{s!.activityCode}</span>
+                </SelectItem>
+              )}
               {clientActivities.map((a) => (
                 <SelectItem key={a.id} value={a.id.toString()}>
                   <span className="font-mono text-xs mr-2">{a.activityId}</span>
@@ -421,6 +501,11 @@ function DraftRow({
               <SelectValue placeholder={draft.activityId ? "Task" : "Pick activity"} />
             </SelectTrigger>
             <SelectContent>
+              {showStoredTask && (
+                <SelectItem value={s!.taskId.toString()}>
+                  <span className="font-mono text-xs">{s!.taskCode}</span>
+                </SelectItem>
+              )}
               {tasks.map((t) => (
                 <SelectItem key={t.id} value={t.id.toString()}>
                   <span className="font-mono text-xs mr-2">{t.taskId}</span>
@@ -436,7 +521,7 @@ function DraftRow({
             placeholder="What did you work on?"
             value={draft.description}
             onChange={(e) => onChange({ description: e.target.value })}
-            onKeyDown={(e) => e.key === "Enter" && !locked && onSave("DRAFT")}
+            onKeyDown={saveOnEnter}
             disabled={locked}
           />
         </td>
@@ -450,13 +535,13 @@ function DraftRow({
             placeholder="0.00"
             value={draft.hours}
             onChange={(e) => onChange({ hours: e.target.value })}
-            onKeyDown={(e) => e.key === "Enter" && !locked && onSave("DRAFT")}
+            onKeyDown={saveOnEnter}
             disabled={locked}
           />
         </td>
-        <td className="text-xs">{activity?.type.code ?? <span className="text-slate-300">—</span>}</td>
+        <td className="text-xs">{typeCode ?? <span className="text-slate-300">—</span>}</td>
         <td>
-          <Badge variant="warning">New</Badge>
+          <Badge variant={isEdit ? "info" : "warning"}>{isEdit ? "Editing" : "New"}</Badge>
         </td>
         <td>
           <div className="flex items-center justify-end gap-1">
@@ -476,7 +561,7 @@ function DraftRow({
                 <Button
                   size="icon"
                   variant="ghost"
-                  title="Remove row"
+                  title={isEdit ? "Cancel edit" : "Remove row"}
                   onClick={onRemove}
                   disabled={locked}
                   className="text-slate-500 hover:text-red-600 hover:bg-red-50"

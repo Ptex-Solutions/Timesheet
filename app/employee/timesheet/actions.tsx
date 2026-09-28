@@ -6,7 +6,9 @@ import { Pencil, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
-export function TimesheetActions({ id, status }: { id: number; status: string }) {
+// onEdit: edit in place (My Timesheets table). Without it, the pencil falls
+// back to the standalone edit page.
+export function TimesheetActions({ id, status, onEdit }: { id: number; status: string; onEdit?: () => void }) {
   const router = useRouter();
   // Rejected entries can be fixed and resubmitted (not deleted).
   const rejected = status === "REJECTED";
@@ -44,9 +46,15 @@ export function TimesheetActions({ id, status }: { id: number; status: string })
 
   return (
     <div className="flex items-center justify-end gap-1">
-      <Button asChild size="icon" variant="ghost" title={rejected ? "Fix & resubmit" : "Edit draft"}>
-        <Link href={`/employee/timesheet/${id}/edit`}><Pencil className="h-3.5 w-3.5" /></Link>
-      </Button>
+      {onEdit ? (
+        <Button size="icon" variant="ghost" title={rejected ? "Fix & resubmit" : "Edit"} onClick={onEdit}>
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+      ) : (
+        <Button asChild size="icon" variant="ghost" title={rejected ? "Fix & resubmit" : "Edit draft"}>
+          <Link href={`/employee/timesheet/${id}/edit`}><Pencil className="h-3.5 w-3.5" /></Link>
+        </Button>
+      )}
       <Button size="icon" variant="ghost" onClick={submit} title={rejected ? "Resubmit as is" : "Submit"}>
         <Send className="h-3.5 w-3.5" />
       </Button>
