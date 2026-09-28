@@ -92,6 +92,8 @@ export function MastersPanel({ canEdit, canDelete }: { canEdit: boolean; canDele
       }
       setDeleting(null);
       load(type);
+    } catch {
+      toast.error("Delete failed — could not reach the server");
     } finally {
       setDeleteBusy(false);
     }
@@ -249,13 +251,15 @@ function MasterDialog({
         cache: "no-store",
         body: JSON.stringify(body),
       });
-      const j = await r.json();
+      const j = await r.json().catch(() => ({}));
       if (!r.ok) {
-        toast.error(j.error || "Failed");
+        toast.error(j.error || `Save failed (HTTP ${r.status})`);
         return;
       }
       toast.success(mode === "create" ? `${TYPE_LABEL[type]} added` : "Updated");
       onClose(true);
+    } catch {
+      toast.error("Save failed — could not reach the server");
     } finally {
       setBusy(false);
     }
