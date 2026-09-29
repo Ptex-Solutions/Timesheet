@@ -81,9 +81,9 @@ export function EmployeesManager({
     <>
       {canEdit && (
         <div className="flex justify-end mb-3">
-          <Button onClick={() => setCreating(true)}>
+          {/* <Button onClick={() => setCreating(true)}>
             <UserPlus className="h-4 w-4" /> Add employee
-          </Button>
+          </Button> */}
         </div>
       )}
 
