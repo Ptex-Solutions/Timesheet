@@ -20,8 +20,9 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import type { ActivityMasterType } from "@/lib/master-types";
 
-export type MasterType = "TYPE" | "CLIENT" | "PRODUCT" | "VERSION" | "MODULE" | "CLOUD_ON_PREM";
+export type MasterType = ActivityMasterType;
 export type MasterOption = { id: number; code: string; description: string | null; isActive: boolean };
 export type MastersByType = Record<MasterType, MasterOption[]>;
 

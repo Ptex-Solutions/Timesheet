@@ -54,6 +54,9 @@ enum MasterType {
   VERSION
   MODULE
   CLOUD_ON_PREM
+  CURRENCY // contract currency (GBP, INR, USD…)
+  RESOURCE_TYPE // commercial billing role (TC, LC…) — unrelated to the RBAC Role enum
+  TASK // generic task catalogue that SOW scope lines pick from
 }
 
 model Master {

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentAccess } from "@/lib/authz";
 import { activityListInclude } from "@/lib/activity-service";
+import { ACTIVITY_MASTER_TYPES } from "@/lib/master-types";
 import { Topbar } from "@/components/shared/topbar";
 import { PageHeader } from "@/components/shared/page-header";
 import { ActivitiesPanel, type MasterOption, type MastersByType } from "./manager";
@@ -12,6 +13,9 @@ export default async function ActivitiesPage() {
 
   const [masterRows, activities] = await Promise.all([
     prisma.master.findMany({
+      // Only the categories an Activity is built from; contract-only masters
+      // (Currency, Resource Type, Tasks) have no slot in MastersByType.
+      where: { type: { in: [...ACTIVITY_MASTER_TYPES] } },
       orderBy: { code: "asc" },
       select: { id: true, type: true, code: true, description: true, isActive: true },
     }),
@@ -29,7 +33,7 @@ export default async function ActivitiesPage() {
     MODULE: [],
     CLOUD_ON_PREM: [],
   };
-  for (const { type, ...m } of masterRows) masters[type].push(m as MasterOption);
+  for (const { type, ...m } of masterRows) masters[type as keyof MastersByType].push(m as MasterOption);
 
   return (
     <>

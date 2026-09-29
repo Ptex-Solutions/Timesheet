@@ -19,13 +19,15 @@ npm run prisma:push      # sync schema to DB without migration files (what READM
 npm run prisma:migrate   # create + apply migration (prisma/migrations/)
 npm run prisma:seed      # tsx prisma/seed.ts — masters/activities/tasks + demo users
 npm run prisma:studio
-npm test                 # node:test via tsx — lib/permissions, lib/activity-code, lib/entry-date tests
+npm test                 # node:test via tsx — lib/permissions, lib/activity-code, lib/entry-date, lib/master-types tests
 npx tsc --noEmit         # typecheck (no separate script)
 ```
 
 Tests use the built-in `node:test` runner (no Jest); coverage is the pure permission logic plus activity-code generation (`lib/activity-code.ts`). No ESLint config is committed. Setup: copy `.env.example` → `.env` (`DATABASE_URL`, `NEXTAUTH_SECRET`/`AUTH_SECRET`, `AUTH_TRUST_HOST`, `BCRYPT_ROUNDS`). Demo logins are listed in README.md.
 
 ## Architecture
+
+Season 2 (Contracts/SOW) design and decisions: `docs/plans/2026-09-29-season2-contracts.md`.
 
 ### Roles & permissions (RBAC)
 
@@ -55,7 +57,7 @@ Session shape (`id: number`, `role`, `employeeCode`) is declared via module augm
 
 Hierarchy: `Master` → `Activity` → `Task`. Timesheet (and SandboxEntry) rows point at `clientId` (a `Master`), `activityId` (an `Activity`), and `taskId` (a `Task`).
 
-- **`Master`** (`prisma/schema.prisma`): generic `{ type, code, description? }` rows, one table for six categories via the `MasterType` enum — `TYPE`, `CLIENT`, `PRODUCT`, `VERSION`, `MODULE`, `CLOUD_ON_PREM`. `Client` is *just another Master row* (`type = CLIENT`); there is no separate `Client` model. Unique on `(type, code)`. CRUD at `/admin/masters` (`app/admin/masters/panel.tsx`, `app/api/masters/route.ts`) — pick a master type from a dropdown, then CRUD the CODE/Description table below it. Deleting a referenced Master soft-deletes (`isActive: false`) instead of failing; never hard-deleted while referenced.
+- **`Master`** (`prisma/schema.prisma`): generic `{ type, code, description? }` rows, one table for nine categories via the `MasterType` enum — `TYPE`, `CLIENT`, `PRODUCT`, `VERSION`, `MODULE`, `CLOUD_ON_PREM` (the Activity-forming ones, `ACTIVITY_MASTER_TYPES`), plus Season 2's contract masters `CURRENCY`, `RESOURCE_TYPE` (commercial billing role such as TC/LC/BC/SA — **not** the RBAC `Role`) and `TASK` (generic task catalogue for SOW scope). UI labels live in `lib/master-types.ts` (pure; a test keeps it in sync with the Prisma enum). `Client` is *just another Master row* (`type = CLIENT`); there is no separate `Client` model. Unique on `(type, code)`. CRUD at `/admin/masters` (`app/admin/masters/panel.tsx`, `app/api/masters/route.ts`) — pick a master type from a dropdown, then CRUD the CODE/Description table below it. Deleting a referenced Master soft-deletes (`isActive: false`) instead of failing; never hard-deleted while referenced.
 - **`Activity`** (renamed from the old `Project`): built by picking Client + Type + Product + Version + Module (+ optional Cloud/On Prem) from the Masters above, plus a free-text `name`. Its `activityId` is auto-generated, not user-entered, as `CLIENT.MODULE.TYPE.VERSION.SEQ` (e.g. `STC.ALL.CR.1.0.4390`) via `createActivity` in `lib/activity-service.ts`:
   - `buildActivityId` (`lib/activity-code.ts`) is the pure, prisma-free formatter — independently unit-tested.
   - `allocateNextSeq` allocates the next number from the single-row `ActivitySequence` table using `SELECT ... FOR UPDATE` + `UPDATE` inside a transaction (same locking pattern as the last-Super-Admin guard in `app/api/users/route.ts`), so concurrent creations can't collide. The sequence is **global** across all clients/types and starts at **4390**.

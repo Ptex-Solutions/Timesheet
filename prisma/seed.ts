@@ -89,7 +89,7 @@ async function main() {
   });
 
   // ---- Masters ----
-  type MasterTypeKey = "TYPE" | "CLIENT" | "PRODUCT" | "VERSION" | "MODULE" | "CLOUD_ON_PREM";
+  type MasterTypeKey = keyof typeof MasterType;
   const masterSpecs: Record<MasterTypeKey, { code: string; description?: string }[]> = {
     TYPE: [
       { code: "CR", description: "Change Request" },
@@ -120,6 +120,29 @@ async function main() {
       { code: "RPT", description: "Reporting" },
     ],
     CLOUD_ON_PREM: [{ code: "CLOUD" }, { code: "ON-PREM" }],
+    CURRENCY: [
+      { code: "GBP", description: "British Pound Sterling" },
+      { code: "INR", description: "Indian Rupee" },
+      { code: "USD", description: "United States Dollar" },
+    ],
+    // Commercial billing roles for SOW rates — not the RBAC Role enum.
+    RESOURCE_TYPE: [
+      { code: "TC", description: "Technical Consultant" },
+      { code: "LC", description: "Lead Consultant" },
+      { code: "BC", description: "Business Consultant" },
+      { code: "SA", description: "Solution Architect" },
+    ],
+    TASK: [
+      { code: "DEV", description: "Development" },
+      { code: "TEST", description: "Testing" },
+      { code: "DEPLOY", description: "Deployment" },
+      { code: "SUP", description: "Support" },
+      { code: "DOC", description: "Documentation" },
+      { code: "R&D", description: "Feasibility Study and Documentation" },
+      { code: "CONFIG", description: "Configure Application" },
+      { code: "INTERNAL", description: "Internal" },
+      { code: "YOGA", description: "Yoga" },
+    ],
   };
 
   // masters[type][code] -> Master.id

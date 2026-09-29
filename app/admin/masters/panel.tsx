@@ -20,20 +20,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-type MasterType = "TYPE" | "CLIENT" | "PRODUCT" | "VERSION" | "MODULE" | "CLOUD_ON_PREM";
-
-const MASTER_TYPE_OPTIONS: { value: MasterType; label: string }[] = [
-  { value: "TYPE", label: "Type" },
-  { value: "CLIENT", label: "Client" },
-  { value: "PRODUCT", label: "Product" },
-  { value: "VERSION", label: "Version" },
-  { value: "MODULE", label: "Module" },
-  { value: "CLOUD_ON_PREM", label: "Cloud / On Prem" },
-];
-
-const TYPE_LABEL: Record<MasterType, string> = Object.fromEntries(
-  MASTER_TYPE_OPTIONS.map((o) => [o.value, o.label])
-) as Record<MasterType, string>;
+import { MASTER_TYPE_LABEL as TYPE_LABEL, MASTER_TYPE_OPTIONS, type MasterTypeValue as MasterType } from "@/lib/master-types";
 
 type Master = {
   id: number;
