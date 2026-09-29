@@ -9,6 +9,7 @@ import {
   Users,
   Building2,
   Layers,
+  FileSignature,
   ShieldCheck,
   Settings,
 } from "lucide-react";
@@ -24,6 +25,7 @@ const ITEMS: (NavItem & { perm: Permission | null })[] = [
   { href: "/admin/mis", label: "MIS Reports", icon: BarChart3, perm: "mis.view" },
   { href: "/admin/employees", label: "Employees", icon: Users, perm: "employees.view" },
   { href: "/admin/masters", label: "Masters", icon: Building2, perm: "masters.view" },
+  { href: "/admin/contracts", label: "Contracts", icon: FileSignature, perm: "contracts.view" },
   { href: "/admin/activities", label: "Activities", icon: Layers, perm: "activities.view" },
   { href: "/admin/access", label: "Access Panel", icon: ShieldCheck, perm: "access.view" },
   { href: "/admin/settings", label: "Settings", icon: Settings, perm: null },

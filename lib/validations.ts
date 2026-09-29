@@ -111,3 +111,37 @@ export const timesheetBulkDecisionSchema = z
     message: "A reason is required to reject",
     path: ["rejectionNote"],
   });
+
+// Contract / SOW editor payload. Rates and hours are decimal strings (or
+// numbers) with up to 2 decimals; totals are never accepted — the server
+// derives them via lib/contract-calc.ts.
+const decimalInput = z.union([z.string().max(20), z.number()]);
+
+export const contractSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(1, "SOW Code is required")
+    .max(80)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._\/-]*$/, "Use letters, digits and . _ / - only (no spaces)")
+    .transform((s) => s.toUpperCase()),
+  description: z.string().trim().max(2000).optional().nullable(),
+  clientId: z.coerce.number().int().positive(),
+  currencyId: z.coerce.number().int().positive(),
+  rates: z
+    .array(z.object({ resourceTypeId: z.coerce.number().int().positive(), ratePerHour: decimalInput }))
+    .max(50),
+  tasks: z
+    .array(
+      z.object({
+        taskMasterId: z.coerce.number().int().positive(),
+        // keyed by resourceTypeId
+        hours: z.record(z.string().regex(/^\d+$/), decimalInput.optional()),
+      })
+    )
+    .max(300),
+});
+
+export const contractStatusActionSchema = z.object({
+  action: z.enum(["activate", "close", "reopen"]),
+});
