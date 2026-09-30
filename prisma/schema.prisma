@@ -220,6 +220,9 @@ model ActivityMember {
   user           User     @relation(fields: [userId], references: [id])
   resourceTypeId Int
   resourceType   Master   @relation("ActivityMemberResource", fields: [resourceTypeId], references: [id])
+  // Inactive members stay on the Activity (history, billing role) but can't
+  // log new time; unchanged existing entries remain editable.
+  isActive       Boolean  @default(true)
 
   @@id([activityId, userId])
   @@index([userId])

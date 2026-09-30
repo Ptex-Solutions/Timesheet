@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, Layers, Loader2, Pencil, Plus, PlusCircle, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Layers, ListChecks, Loader2, MoreHorizontal, Pencil, Plus, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,16 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { ActivityMasterType } from "@/lib/master-types";
+import { ActivityDetails, EditTasksDialog, type DetailTab } from "./details";
+import { readJson, type ActivityRow as Activity, type ActivityTask as Task, type MasterBrief } from "./types";
 import {
   ScopeEditor,
   emptyScope,
@@ -37,38 +46,17 @@ export type MasterType = ActivityMasterType;
 export type MasterOption = { id: number; code: string; description: string | null; isActive: boolean };
 export type MastersByType = Record<MasterType, MasterOption[]>;
 
-type MasterBrief = { id: number; code: string; description: string | null };
-type Task = {
-  id: number;
-  taskId: string;
-  taskName: string;
-  poRef: string | null;
-  isActive: boolean;
-  contractTaskId: number | null;
-};
-type Member = { userId: number; resourceTypeId: number; user: { name: string; employeeCode: string }; resourceType: MasterBrief };
-type Activity = {
-  id: number;
-  activityId: string;
-  name: string;
-  isActive: boolean;
-  client: MasterBrief;
-  type: MasterBrief;
-  product: MasterBrief;
-  version: MasterBrief;
-  module: MasterBrief;
-  cloudOnPrem: MasterBrief | null;
-  contract: { id: number; code: string; status: string } | null;
-  tasks: Task[];
-  members: Member[];
-};
-
 function scopeOf(a: Activity): ScopeValue {
   if (!a.contract) return emptyScope;
   return {
     contractId: String(a.contract.id),
-    taskIds: a.tasks.filter((t) => t.isActive && t.contractTaskId !== null).map((t) => t.contractTaskId!),
-    members: a.members.map((m) => ({ userId: String(m.userId), resourceTypeId: String(m.resourceTypeId) })),
+    // Selected = assigned to the Activity, active or not (active is a separate flag).
+    taskIds: a.tasks.filter((t) => t.contractTaskId !== null).map((t) => t.contractTaskId!),
+    members: a.members.map((m) => ({
+      userId: String(m.userId),
+      resourceTypeId: String(m.resourceTypeId),
+      isActive: m.isActive,
+    })),
   };
 }
 
@@ -85,10 +73,6 @@ const ID_FIELDS: { key: "clientId" | "typeId" | "productId" | "versionId" | "mod
 
 function masterLabel(m: MasterBrief) {
   return m.description ? `${m.code} — ${m.description}` : m.code;
-}
-
-async function readJson(r: Response) {
-  return r.json().catch(() => ({} as Record<string, any>));
 }
 
 export function ActivitiesPanel({
@@ -113,7 +97,9 @@ export function ActivitiesPanel({
   const [editing, setEditing] = useState<Activity | null>(null);
   const [deleting, setDeleting] = useState<Activity | null>(null);
   const [taskDialog, setTaskDialog] = useState<{ task?: Task; activity: Activity } | null>(null);
-  const [deactivatingTask, setDeactivatingTask] = useState<Task | null>(null);
+  const [editingTasks, setEditingTasks] = useState<Activity | null>(null);
+  const [tabs, setTabs] = useState<Record<number, DetailTab>>({});
+  const contractById = useMemo(() => new Map(contracts.map((c) => [c.id, c])), [contracts]);
   const [togglingId, setTogglingId] = useState<number | null>(null);
 
   const visible = useMemo(
@@ -132,6 +118,11 @@ export function ActivitiesPanel({
     const next = new Set(expanded);
     next.has(id) ? next.delete(id) : next.add(id);
     setExpanded(next);
+  }
+
+  function openTab(id: number, tab: DetailTab) {
+    setExpanded((prev) => new Set(prev).add(id));
+    setTabs((t) => ({ ...t, [id]: tab }));
   }
 
   async function setActive(a: Activity, isActive: boolean) {
@@ -191,11 +182,12 @@ export function ActivitiesPanel({
             <TableHeader>
               <TableRow>
                 <TableHead className="w-8" />
+                <TableHead>Client</TableHead>
                 <TableHead>Activity ID</TableHead>
                 <TableHead>Name</TableHead>
-                <TableHead>Client</TableHead>
                 <TableHead>Contract</TableHead>
                 <TableHead>Tasks</TableHead>
+                <TableHead title="Active members who can log time">Members</TableHead>
                 <TableHead>Active</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -204,6 +196,7 @@ export function ActivitiesPanel({
               {visible.map((a) => {
                 const isOpen = expanded.has(a.id);
                 const activeTasks = a.tasks.filter((t) => t.isActive).length;
+                const activeMembers = a.members.filter((m) => m.isActive).length;
                 return (
                   <Fragment key={a.id}>
                     <TableRow className="cursor-pointer" onClick={() => toggle(a.id)}>
@@ -214,16 +207,16 @@ export function ActivitiesPanel({
                           <ChevronRight className="h-4 w-4 text-slate-400" />
                         )}
                       </TableCell>
+                      <TableCell className="text-sm text-slate-600">
+                        <span className="font-mono text-xs">{a.client.code}</span>
+                        {a.client.description && <span className="ml-2 text-slate-400">{a.client.description}</span>}
+                      </TableCell>
                       <TableCell>
                         <span className="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
                           {a.activityId}
                         </span>
                       </TableCell>
                       <TableCell className="text-sm font-medium text-navy">{a.name}</TableCell>
-                      <TableCell className="text-sm text-slate-600">
-                        <span className="font-mono text-xs">{a.client.code}</span>
-                        {a.client.description && <span className="ml-2 text-slate-400">{a.client.description}</span>}
-                      </TableCell>
                       <TableCell>
                         {a.contract ? (
                           <Badge variant={a.contract.status === "ACTIVE" ? "info" : "default"} className="font-mono">
@@ -234,6 +227,13 @@ export function ActivitiesPanel({
                         )}
                       </TableCell>
                       <TableCell className="text-sm text-slate-600">{activeTasks}</TableCell>
+                      <TableCell className="text-sm text-slate-600">
+                        {a.contract ? (
+                          <span className={activeMembers === 0 ? "text-amber-700" : undefined}>{activeMembers}</span>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         {canEdit ? (
                           <div className="flex items-center gap-2">
@@ -252,35 +252,56 @@ export function ActivitiesPanel({
                         )}
                       </TableCell>
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1">
-                          {canEdit && (
-                            <Button size="icon" variant="ghost" onClick={() => setEditing(a)}>
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                          {canDelete && (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="text-red-600 hover:bg-red-50"
-                              onClick={() => setDeleting(a)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </div>
+                        {(canEdit || canDelete) && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="icon" variant="ghost" aria-label="Actions">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {canEdit && (
+                                <>
+                                  <DropdownMenuItem onSelect={() => setEditing(a)}>
+                                    <Pencil className="h-3.5 w-3.5 mr-2" /> Edit Activity
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    disabled={!a.contract || !contractById.get(a.contract.id)}
+                                    onSelect={() => setEditingTasks(a)}
+                                  >
+                                    <ListChecks className="h-3.5 w-3.5 mr-2" /> Edit Tasks
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem disabled={!a.contract} onSelect={() => openTab(a.id, "members")}>
+                                    <Users className="h-3.5 w-3.5 mr-2" /> Manage Members
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              {canDelete && (
+                                <>
+                                  {canEdit && <DropdownMenuSeparator />}
+                                  <DropdownMenuItem className="text-red-600" onSelect={() => setDeleting(a)}>
+                                    <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
                       </TableCell>
                     </TableRow>
                     {isOpen && (
                       <TableRow className="hover:bg-transparent">
-                        <TableCell colSpan={8} className="bg-slate-50/50">
-                          <TaskList
+                        <TableCell colSpan={9} className="bg-slate-50/50">
+                          <ActivityDetails
                             activity={a}
+                            contract={a.contract ? contractById.get(a.contract.id) : undefined}
+                            users={users}
+                            tab={tabs[a.id] ?? "tasks"}
+                            onTabChange={(t) => setTabs((prev) => ({ ...prev, [a.id]: t }))}
                             canEdit={canEdit}
-                            canDelete={canDelete}
-                            onAdd={() => setTaskDialog({ activity: a })}
-                            onEdit={(t) => setTaskDialog({ task: t, activity: a })}
-                            onDeactivate={(t) => setDeactivatingTask(t)}
+                            onEditTasks={() => setEditingTasks(a)}
+                            onAddLegacyTask={() => setTaskDialog({ activity: a })}
+                            onEditLegacyTask={(t) => setTaskDialog({ task: t, activity: a })}
                           />
                         </TableCell>
                       </TableRow>
@@ -353,145 +374,17 @@ export function ActivitiesPanel({
         />
       )}
 
-      {deactivatingTask && (
-        <ConfirmDialog
-          title="Deactivate Task"
-          description={
-            <>
-              Deactivate task <span className="font-mono">{deactivatingTask.taskId}</span>? Employees will no
-              longer be able to log time against it. You can re-activate it from Edit.
-            </>
-          }
-          confirmLabel="Deactivate"
-          onCancel={() => setDeactivatingTask(null)}
-          onConfirm={async () => {
-            const r = await fetch(`/api/tasks?id=${deactivatingTask.id}`, { method: "DELETE" });
-            const j = await readJson(r);
-            if (!r.ok) {
-              toast.error(j.error || "Failed");
-              return;
-            }
-            toast.success("Task deactivated");
-            setDeactivatingTask(null);
-            router.refresh();
+      {editingTasks && editingTasks.contract && contractById.get(editingTasks.contract.id) && (
+        <EditTasksDialog
+          activity={editingTasks}
+          contract={contractById.get(editingTasks.contract.id)!}
+          onClose={(changed) => {
+            setEditingTasks(null);
+            if (changed) router.refresh();
           }}
         />
       )}
     </>
-  );
-}
-
-function TaskList({
-  activity,
-  canEdit,
-  canDelete,
-  onAdd,
-  onEdit,
-  onDeactivate,
-}: {
-  activity: Activity;
-  canEdit: boolean;
-  canDelete: boolean;
-  onAdd: () => void;
-  onEdit: (t: Task) => void;
-  onDeactivate: (t: Task) => void;
-}) {
-  return (
-    <div className="py-2 px-2 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-          <span>Type <span className="font-mono text-slate-700">{activity.type.code}</span></span>
-          <span>· Product <span className="font-mono text-slate-700">{activity.product.code}</span></span>
-          <span>· Version <span className="font-mono text-slate-700">{activity.version.code}</span></span>
-          <span>· Module <span className="font-mono text-slate-700">{activity.module.code}</span></span>
-          {activity.cloudOnPrem && (
-            <span>· <span className="font-mono text-slate-700">{activity.cloudOnPrem.code}</span></span>
-          )}
-          {activity.contract && (
-            <span>· SOW / PO <span className="font-mono text-slate-700">{activity.contract.code}</span></span>
-          )}
-        </div>
-        {/* Contract-backed Activities pick tasks from the SOW in Edit Activity. */}
-        {canEdit && !activity.contract && (
-          <Button size="sm" variant="outline" onClick={onAdd}>
-            <PlusCircle className="h-3.5 w-3.5" /> Add task
-          </Button>
-        )}
-      </div>
-
-      {activity.contract && (
-        <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
-          <span>Members:</span>
-          {activity.members.length === 0 ? (
-            <span className="text-amber-700">none, so nobody can log time yet</span>
-          ) : (
-            activity.members.map((m) => (
-              <Badge key={m.userId} variant="outline">
-                {m.user.name} · {m.resourceType.code}
-              </Badge>
-            ))
-          )}
-        </div>
-      )}
-
-      {activity.tasks.length === 0 ? (
-        <p className="text-sm text-slate-400 text-center py-4">No tasks under this activity yet.</p>
-      ) : (
-        <div className="rounded-md border border-slate-200 bg-white">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Task ID</TableHead>
-                <TableHead>Task Name</TableHead>
-                <TableHead>Source</TableHead>
-                <TableHead>Active</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {activity.tasks.map((t) => (
-                <TableRow key={t.id} className={t.isActive ? undefined : "opacity-60"}>
-                  <TableCell>
-                    <Badge variant="brand" className="font-mono">{t.taskId}</Badge>
-                  </TableCell>
-                  <TableCell className="text-sm">{t.taskName}</TableCell>
-                  <TableCell className="text-xs text-slate-500">
-                    {t.contractTaskId !== null ? (
-                      <Badge variant="info">SOW</Badge>
-                    ) : (
-                      <span className="font-mono">{t.poRef ? `Legacy · ${t.poRef}` : "Legacy"}</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {t.isActive ? <Badge variant="success">Active</Badge> : <Badge variant="default">Inactive</Badge>}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      {/* SOW tasks take code and name from the TASK master; only legacy free-text tasks are editable. */}
-                      {canEdit && t.contractTaskId === null && (
-                        <Button size="icon" variant="ghost" onClick={() => onEdit(t)}>
-                          <Pencil className="h-3 w-3" />
-                        </Button>
-                      )}
-                      {canDelete && t.isActive && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="text-red-600 hover:bg-red-50"
-                          onClick={() => onDeactivate(t)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-    </div>
   );
 }
 

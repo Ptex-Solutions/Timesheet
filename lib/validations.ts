@@ -44,15 +44,25 @@ export const activitySchema = z.object({
   // sending contractId replaces the task subset and members.
   contractId: z.coerce.number().int().positive().optional(),
   contractTaskIds: z.array(z.coerce.number().int().positive()).max(300).optional(),
+  // contractTaskId -> active flag, for "Edit Tasks".
+  taskActive: z.record(z.string().regex(/^\d+$/), z.boolean()).optional(),
   members: z
     .array(
       z.object({
         userId: z.coerce.number().int().positive(),
         resourceTypeId: z.coerce.number().int().positive(),
+        isActive: z.boolean().optional(),
       })
     )
     .max(500)
     .optional(),
+});
+
+// Quick member edits from the Activities accordion.
+export const activityMemberSchema = z.object({
+  userId: z.coerce.number().int().positive(),
+  resourceTypeId: z.coerce.number().int().positive().optional(),
+  isActive: z.boolean().optional(),
 });
 
 export const taskSchema = z.object({

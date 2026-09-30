@@ -25,7 +25,7 @@ export type UserOption = { id: number; name: string; employeeCode: string };
 export type ScopeValue = {
   contractId: string;
   taskIds: number[];
-  members: { userId: string; resourceTypeId: string }[];
+  members: { userId: string; resourceTypeId: string; isActive: boolean }[];
 };
 
 export const emptyScope: ScopeValue = { contractId: "", taskIds: [], members: [] };
@@ -44,7 +44,11 @@ export function scopePayload(v: ScopeValue) {
   return {
     contractId: Number(v.contractId),
     contractTaskIds: v.taskIds,
-    members: v.members.map((m) => ({ userId: Number(m.userId), resourceTypeId: Number(m.resourceTypeId) })),
+    members: v.members.map((m) => ({
+      userId: Number(m.userId),
+      resourceTypeId: Number(m.resourceTypeId),
+      isActive: m.isActive,
+    })),
   };
 }
 
@@ -139,11 +143,13 @@ export function ScopeEditor({
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label>Members (who can log time)</Label>
+              <Label>Members (active ones can log time)</Label>
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => onChange({ ...value, members: [...value.members, { userId: "", resourceTypeId: "" }] })}
+                onClick={() =>
+                  onChange({ ...value, members: [...value.members, { userId: "", resourceTypeId: "", isActive: true }] })
+                }
               >
                 <Plus className="h-3.5 w-3.5" /> Add member
               </Button>
@@ -179,6 +185,10 @@ export function ScopeEditor({
                     ))}
                   </SelectContent>
                 </Select>
+                <label className="flex items-center gap-1.5 text-xs text-slate-600 whitespace-nowrap">
+                  <Checkbox checked={m.isActive} onCheckedChange={(v) => setMember(i, { isActive: v === true })} />
+                  Active
+                </label>
                 <Button
                   size="icon"
                   variant="ghost"

@@ -8,15 +8,20 @@ import { Prisma } from "@prisma/client";
 // - every selected ContractTask belongs to that contract (never a task of an
 //   unrelated contract);
 // - every member's resource type has a rate on that contract;
-// - task rows that already carry timesheet/sandbox history are deactivated,
-//   never deleted or re-pointed, so historical entries keep their meaning.
+// - a task row that already carries timesheet/sandbox history can't be
+//   unselected (deleted); it can only be marked inactive, so historical
+//   entries keep their meaning. Selecting and active/inactive are separate:
+//   a selected task keeps its current active flag unless `taskActive` sets it.
 
 export class ScopeError extends Error {}
 
 export type ActivityScopeInput = {
   contractId: number;
   contractTaskIds: number[];
-  members: { userId: number; resourceTypeId: number }[];
+  // Optional active flag per selected contractTaskId; omitted lines keep
+  // their current flag (new ones start active).
+  taskActive?: Record<number, boolean>;
+  members: { userId: number; resourceTypeId: number; isActive?: boolean }[];
 };
 
 export type ScopeResult = {
@@ -108,9 +113,19 @@ export async function applyActivityScope(
     }
   }
 
+  for (const [lineId, t] of byLine) {
+    if (wantedSet.has(lineId)) continue;
+    if (used.has(t.id)) {
+      throw new ScopeError(`${t.taskId} has logged time, so it can't be removed. Mark it inactive instead.`);
+    }
+    await tx.task.delete({ where: { id: t.id } });
+    result.removed.push(t.taskId);
+  }
+
   for (const id of wanted) {
     const existing = byLine.get(id);
     const master = contractTasks.get(id)!.taskMaster;
+    const want = input.taskActive?.[id];
     if (!existing) {
       await tx.task.create({
         data: {
@@ -118,25 +133,13 @@ export async function applyActivityScope(
           contractTaskId: id,
           taskId: master.code,
           taskName: master.description ?? master.code,
+          isActive: want ?? true,
         },
       });
       result.added.push(master.code);
-    } else if (!existing.isActive) {
-      await tx.task.update({ where: { id: existing.id }, data: { isActive: true } });
-      result.reactivated.push(master.code);
-    }
-  }
-
-  for (const [lineId, t] of byLine) {
-    if (wantedSet.has(lineId)) continue;
-    if (used.has(t.id)) {
-      if (t.isActive) {
-        await tx.task.update({ where: { id: t.id }, data: { isActive: false } });
-        result.deactivated.push(t.taskId);
-      }
-    } else {
-      await tx.task.delete({ where: { id: t.id } });
-      result.removed.push(t.taskId);
+    } else if (want !== undefined && want !== existing.isActive) {
+      await tx.task.update({ where: { id: existing.id }, data: { isActive: want } });
+      (want ? result.reactivated : result.deactivated).push(master.code);
     }
   }
 
@@ -156,9 +159,16 @@ export async function applyActivityScope(
   }
   await tx.activityMember.deleteMany({ where: { activityId } });
   if (input.members.length) {
-    await tx.activityMember.createMany({ data: input.members.map((m) => ({ activityId, ...m })) });
+    await tx.activityMember.createMany({
+      data: input.members.map((m) => ({
+        activityId,
+        userId: m.userId,
+        resourceTypeId: m.resourceTypeId,
+        isActive: m.isActive ?? true,
+      })),
+    });
   }
-  result.members = input.members.length;
+  result.members = input.members.filter((m) => m.isActive !== false).length;
 
   await tx.activity.update({ where: { id: activityId }, data: { contractId: contract.id } });
   return result;

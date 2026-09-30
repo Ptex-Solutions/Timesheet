@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
         ? {}
         : {
             isActive: true,
-            OR: [{ contractId: null }, { members: { some: { userId: access.user.id } } }],
+            OR: [{ contractId: null }, { members: { some: { userId: access.user.id, isActive: true } } }],
           }),
     },
     orderBy: { activityId: "asc" },
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { contractId, contractTaskIds, members, ...activityInput } = parsed.data;
+  const { contractId, contractTaskIds, taskActive, members, ...activityInput } = parsed.data;
   if (!contractId) return badRequest("Select the Contract / SOW this Activity executes");
 
   let created;
@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
         const scope = await applyActivityScope(tx, created.id, {
           contractId,
           contractTaskIds: contractTaskIds ?? [],
+          taskActive: taskActive && Object.fromEntries(Object.entries(taskActive).map(([k, v]) => [Number(k), v])),
           members: members ?? [],
         });
         return { created, scope };
@@ -132,7 +133,7 @@ export async function PUT(req: NextRequest) {
     if (v !== undefined && v !== existing[f]) return badRequest(IMMUTABLE_MESSAGE);
   }
 
-  const { name, cloudOnPremId, isActive, contractId, contractTaskIds, members } = parsed.data;
+  const { name, cloudOnPremId, isActive, contractId, contractTaskIds, taskActive, members } = parsed.data;
 
   if (cloudOnPremId != null && cloudOnPremId !== existing.cloudOnPremId) {
     const m = await prisma.master.findUnique({ where: { id: cloudOnPremId } });
@@ -165,10 +166,11 @@ export async function PUT(req: NextRequest) {
           scope = await applyActivityScope(tx, id, {
             contractId,
             contractTaskIds:
-              contractTaskIds ??
-              current.tasks.filter((t) => t.isActive && t.contractTaskId !== null).map((t) => t.contractTaskId!),
+              contractTaskIds ?? current.tasks.filter((t) => t.contractTaskId !== null).map((t) => t.contractTaskId!),
+            taskActive: taskActive && Object.fromEntries(Object.entries(taskActive).map(([k, v]) => [Number(k), v])),
             members:
-              members ?? current.members.map((m) => ({ userId: m.userId, resourceTypeId: m.resourceTypeId })),
+              members ??
+              current.members.map((m) => ({ userId: m.userId, resourceTypeId: m.resourceTypeId, isActive: m.isActive })),
           });
         }
         return { data, scope };

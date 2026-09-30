@@ -80,6 +80,9 @@ export async function resolveTimesheetRefs(
       if (!member && !keepActivity) {
         return { ok: false, error: "You are not a member of this Activity" };
       }
+      if (member && !member.isActive && !keepActivity) {
+        return { ok: false, error: "Your membership on this Activity is inactive" };
+      }
       resourceTypeId = member?.resourceTypeId ?? null;
     }
   }
