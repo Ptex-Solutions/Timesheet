@@ -55,12 +55,18 @@ export async function PUT(req: NextRequest) {
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (existing.contractTaskId !== null) {
     // SOW-backed task: its code and parent are fixed by the contract line;
-    // only the display name (Beeline task name) and active flag may change.
+    // code and name come from the TASK master; only the active flag may change.
     if (parsed.data.activityId !== undefined && parsed.data.activityId !== existing.activityId) {
       return badRequest("A contract task cannot move to another Activity");
     }
     if (parsed.data.taskId !== undefined && parsed.data.taskId !== existing.taskId) {
       return badRequest("A contract task's code comes from the SOW and cannot change");
+    }
+    if (parsed.data.taskName !== undefined && parsed.data.taskName !== existing.taskName) {
+      return badRequest("A contract task's name comes from the Tasks master and cannot change");
+    }
+    if (parsed.data.poRef !== undefined && (parsed.data.poRef ?? null) !== existing.poRef) {
+      return badRequest("A contract task's PO reference is the contract code");
     }
   }
   if (parsed.data.activityId !== undefined && parsed.data.activityId !== existing.activityId) {

@@ -467,7 +467,8 @@ function TaskList({
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      {canEdit && (
+                      {/* SOW tasks take code and name from the TASK master; only legacy free-text tasks are editable. */}
+                      {canEdit && t.contractTaskId === null && (
                         <Button size="icon" variant="ghost" onClick={() => onEdit(t)}>
                           <Pencil className="h-3 w-3" />
                         </Button>
