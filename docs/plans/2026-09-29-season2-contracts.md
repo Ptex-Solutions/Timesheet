@@ -303,8 +303,29 @@ Breaking or behavioural changes:
   The member's `resourceTypeId` must be one of the roles in the Activity's Contract rate table. Each timesheet gets a nullable `resourceTypeId` column, which the server snapshots from the membership on create and update. Later role changes therefore do not rewrite past billing.
 - **Q5 — currency: one per Contract.** It is picked in the header, and the rate rows show it read-only.
 
-## Still open
+## Decisions (continued, 2026-09-29)
 
-- **Q1b.** How should legacy V1 activities be handled?
-- **Q2.** Where does the PO Ref live? The recommendation is `Contract.poRef`, with the MIS falling back to `task.poRef`.
-- **Q6.** Does Activity membership restrict which Activities an employee can log time against?
+- **Q2 — PO reference: the SOW code is the PO reference.** `Contract` has no separate `poRef` column. The MIS "PO Ref." column shows the Activity's contract code, falling back to the legacy `Task.poRef`.
+- **Q1b — legacy Activities get their own contract.** Every V1 Activity is given a contract. `lib/contract-backfill.ts` (`npm run db:backfill-contracts`, which the seed also runs) does this in four steps:
+  1. It reuses the contract whose code equals the Activity's task PO reference. If there is none, it creates one: `ACTIVE`, one zero rate at TC, and code `LEGACY-<activityId>` when there is no usable PO.
+  2. It adds a SOW line for each legacy task code, keeping the task ids.
+  3. It makes everyone who has already logged time on the Activity a member.
+  4. The seed attaches its own demo Activities to the seeded contracts, with the listed members.
+- **Q6 — members only.** Contract-backed Activities are listed to, and accept time from, their members only. Pre-contract Activities stay open to all, but after the backfill none remain.
+
+## Implementation status
+
+| Phase | Result | Commit |
+|---|---|---|
+| 2 Masters | Done | e412d3f |
+| 3 Contracts | Done | 0e4c43b |
+| 4 Activities | Done | 7d1a58c |
+| 5 Timesheets | Done | 94b8e4c |
+| 6 MIS / Sandbox / docs | Done | this commit |
+
+Final schema differences from §3:
+
+- There is no `Contract.poRef` (see Q2).
+- There is an extra `ActivityMember` table.
+- There is an extra `Timesheet.resourceTypeId` column, a billing-role snapshot taken when the owner saves.
+- The optional FKs `Activity.contractId`, `Task.contractTaskId` and `Timesheet.resourceTypeId` use `ON DELETE RESTRICT`.
