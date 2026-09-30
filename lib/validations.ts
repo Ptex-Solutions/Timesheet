@@ -82,12 +82,26 @@ export const userSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-export const sandboxCreateSchema = z.object({
-  sandboxLabel: z.string().min(1).max(120),
-  dateFrom: z.string(),
-  dateTo: z.string(),
-  status: z.enum(["SUBMITTED", "APPROVED"]).default("APPROVED"),
-});
+const isoDate = z.string().refine((s) => !Number.isNaN(Date.parse(s)), "Invalid date");
+
+// New sandbox: which real timesheets to clone. Client is required; contract,
+// activity and task (a TASK master, i.e. the SOW task across activities)
+// narrow it further. `dryRun` only counts the matches.
+export const sandboxCreateSchema = z
+  .object({
+    sandboxLabel: z.string().trim().max(120).optional(), // required unless dryRun
+    clientId: z.coerce.number().int().positive(),
+    dateFrom: isoDate,
+    dateTo: isoDate,
+    contractId: z.coerce.number().int().positive().optional().nullable(),
+    activityId: z.coerce.number().int().positive().optional().nullable(),
+    taskMasterId: z.coerce.number().int().positive().optional().nullable(),
+    dryRun: z.boolean().optional(),
+  })
+  .refine((v) => Date.parse(v.dateFrom) <= Date.parse(v.dateTo), {
+    message: "Date from must be on or before Date to",
+    path: ["dateTo"],
+  });
 
 export const sandboxEntrySchema = z.object({
   sandboxLabel: z.string().min(1),
