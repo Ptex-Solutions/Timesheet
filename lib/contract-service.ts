@@ -176,14 +176,37 @@ export async function saveContract(
 }
 
 // Removing a role or SOW task from a contract must not orphan anything that
-// already depends on it (Activity task assignments / members). Extended when
-// those relations exist.
+// depends on it: Activity tasks delivering that SOW line, or Activity members
+// billed at that role. Staff must first change those Activities.
 async function assertRemovable(
-  _tx: Prisma.TransactionClient,
-  _contractId: number,
-  _removedRoleIds: number[],
-  _removedContractTaskIds: number[]
-) {}
+  tx: Prisma.TransactionClient,
+  contractId: number,
+  removedRoleIds: number[],
+  removedContractTaskIds: number[]
+) {
+  if (removedContractTaskIds.length) {
+    const t = await tx.task.findFirst({
+      where: { contractTaskId: { in: removedContractTaskIds } },
+      include: { activity: { select: { activityId: true } }, contractTask: { include: { taskMaster: true } } },
+    });
+    if (t) {
+      throw new ContractError(
+        `Task ${t.contractTask?.taskMaster.code} is assigned to Activity ${t.activity.activityId}; remove it there first`
+      );
+    }
+  }
+  if (removedRoleIds.length) {
+    const m = await tx.activityMember.findFirst({
+      where: { resourceTypeId: { in: removedRoleIds }, activity: { contractId } },
+      include: { activity: { select: { activityId: true } }, resourceType: true },
+    });
+    if (m) {
+      throw new ContractError(
+        `Role ${m.resourceType.code} is used by members of Activity ${m.activity.activityId}; change them first`
+      );
+    }
+  }
+}
 
 // Lifecycle: DRAFT → ACTIVE → CLOSED, CLOSED → ACTIVE (re-open).
 export const CONTRACT_TRANSITIONS: Record<"activate" | "close" | "reopen", { from: ContractStatus; to: ContractStatus }> = {

@@ -21,13 +21,32 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import type { ActivityMasterType } from "@/lib/master-types";
+import {
+  ScopeEditor,
+  emptyScope,
+  scopePayload,
+  scopeProblem,
+  type ContractLite,
+  type ScopeValue,
+  type UserOption,
+} from "./scope-editor";
+
+export type { ContractLite, UserOption };
 
 export type MasterType = ActivityMasterType;
 export type MasterOption = { id: number; code: string; description: string | null; isActive: boolean };
 export type MastersByType = Record<MasterType, MasterOption[]>;
 
 type MasterBrief = { id: number; code: string; description: string | null };
-type Task = { id: number; taskId: string; taskName: string; poRef: string | null; isActive: boolean };
+type Task = {
+  id: number;
+  taskId: string;
+  taskName: string;
+  poRef: string | null;
+  isActive: boolean;
+  contractTaskId: number | null;
+};
+type Member = { userId: number; resourceTypeId: number; user: { name: string; employeeCode: string }; resourceType: MasterBrief };
 type Activity = {
   id: number;
   activityId: string;
@@ -39,8 +58,19 @@ type Activity = {
   version: MasterBrief;
   module: MasterBrief;
   cloudOnPrem: MasterBrief | null;
+  contract: { id: number; code: string; status: string } | null;
   tasks: Task[];
+  members: Member[];
 };
+
+function scopeOf(a: Activity): ScopeValue {
+  if (!a.contract) return emptyScope;
+  return {
+    contractId: String(a.contract.id),
+    taskIds: a.tasks.filter((t) => t.isActive && t.contractTaskId !== null).map((t) => t.contractTaskId!),
+    members: a.members.map((m) => ({ userId: String(m.userId), resourceTypeId: String(m.resourceTypeId) })),
+  };
+}
 
 const NONE = "__none__";
 
@@ -64,11 +94,15 @@ async function readJson(r: Response) {
 export function ActivitiesPanel({
   activities,
   masters,
+  contracts,
+  users,
   canEdit,
   canDelete,
 }: {
   activities: Activity[];
   masters: MastersByType;
+  contracts: ContractLite[];
+  users: UserOption[];
   canEdit: boolean;
   canDelete: boolean;
 }) {
@@ -160,6 +194,7 @@ export function ActivitiesPanel({
                 <TableHead>Activity ID</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Client</TableHead>
+                <TableHead>Contract</TableHead>
                 <TableHead>Tasks</TableHead>
                 <TableHead>Active</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -188,6 +223,15 @@ export function ActivitiesPanel({
                       <TableCell className="text-sm text-slate-600">
                         <span className="font-mono text-xs">{a.client.code}</span>
                         {a.client.description && <span className="ml-2 text-slate-400">{a.client.description}</span>}
+                      </TableCell>
+                      <TableCell>
+                        {a.contract ? (
+                          <Badge variant={a.contract.status === "ACTIVE" ? "info" : "default"} className="font-mono">
+                            {a.contract.code}
+                          </Badge>
+                        ) : (
+                          <Badge variant="warning">No SOW</Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-sm text-slate-600">{activeTasks}</TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
@@ -229,7 +273,7 @@ export function ActivitiesPanel({
                     </TableRow>
                     {isOpen && (
                       <TableRow className="hover:bg-transparent">
-                        <TableCell colSpan={7} className="bg-slate-50/50">
+                        <TableCell colSpan={8} className="bg-slate-50/50">
                           <TaskList
                             activity={a}
                             canEdit={canEdit}
@@ -252,6 +296,8 @@ export function ActivitiesPanel({
       {creating && (
         <CreateActivityDialog
           masters={masters}
+          contracts={contracts}
+          users={users}
           onClose={(changed) => {
             setCreating(false);
             if (changed) router.refresh();
@@ -263,6 +309,8 @@ export function ActivitiesPanel({
         <EditActivityDialog
           activity={editing}
           cloudOptions={masters.CLOUD_ON_PREM}
+          contracts={contracts}
+          users={users}
           onClose={(changed) => {
             setEditing(null);
             if (changed) router.refresh();
@@ -359,13 +407,32 @@ function TaskList({
           {activity.cloudOnPrem && (
             <span>· <span className="font-mono text-slate-700">{activity.cloudOnPrem.code}</span></span>
           )}
+          {activity.contract && (
+            <span>· SOW / PO <span className="font-mono text-slate-700">{activity.contract.code}</span></span>
+          )}
         </div>
-        {canEdit && (
+        {/* Contract-backed Activities pick tasks from the SOW in Edit Activity. */}
+        {canEdit && !activity.contract && (
           <Button size="sm" variant="outline" onClick={onAdd}>
             <PlusCircle className="h-3.5 w-3.5" /> Add task
           </Button>
         )}
       </div>
+
+      {activity.contract && (
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+          <span>Members:</span>
+          {activity.members.length === 0 ? (
+            <span className="text-amber-700">none, so nobody can log time yet</span>
+          ) : (
+            activity.members.map((m) => (
+              <Badge key={m.userId} variant="outline">
+                {m.user.name} · {m.resourceType.code}
+              </Badge>
+            ))
+          )}
+        </div>
+      )}
 
       {activity.tasks.length === 0 ? (
         <p className="text-sm text-slate-400 text-center py-4">No tasks under this activity yet.</p>
@@ -376,7 +443,7 @@ function TaskList({
               <TableRow>
                 <TableHead>Task ID</TableHead>
                 <TableHead>Task Name</TableHead>
-                <TableHead>PO Ref</TableHead>
+                <TableHead>Source</TableHead>
                 <TableHead>Active</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -388,7 +455,13 @@ function TaskList({
                     <Badge variant="brand" className="font-mono">{t.taskId}</Badge>
                   </TableCell>
                   <TableCell className="text-sm">{t.taskName}</TableCell>
-                  <TableCell className="text-xs font-mono text-slate-500">{t.poRef || "—"}</TableCell>
+                  <TableCell className="text-xs text-slate-500">
+                    {t.contractTaskId !== null ? (
+                      <Badge variant="info">SOW</Badge>
+                    ) : (
+                      <span className="font-mono">{t.poRef ? `Legacy · ${t.poRef}` : "Legacy"}</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     {t.isActive ? <Badge variant="success">Active</Badge> : <Badge variant="default">Inactive</Badge>}
                   </TableCell>
@@ -423,11 +496,16 @@ function TaskList({
 
 function CreateActivityDialog({
   masters,
+  contracts,
+  users,
   onClose,
 }: {
   masters: MastersByType;
+  contracts: ContractLite[];
+  users: UserOption[];
   onClose: (changed: boolean) => void;
 }) {
+  const [scope, setScope] = useState<ScopeValue>(emptyScope);
   const [name, setName] = useState("");
   const [ids, setIds] = useState<Record<(typeof ID_FIELDS)[number]["key"], string>>({
     clientId: "",
@@ -457,6 +535,8 @@ function CreateActivityDialog({
     if (!name.trim()) return toast.error("Name is required");
     const missing = ID_FIELDS.filter((f) => !ids[f.key]).map((f) => f.label);
     if (missing.length) return toast.error(`Select ${missing.join(", ")}`);
+    const problem = scopeProblem(scope);
+    if (problem) return toast.error(problem);
 
     setBusy(true);
     try {
@@ -468,6 +548,7 @@ function CreateActivityDialog({
         versionId: Number(ids.versionId),
         moduleId: Number(ids.moduleId),
         cloudOnPremId: cloudOnPremId === NONE ? null : Number(cloudOnPremId),
+        ...scopePayload(scope),
       };
       const r = await fetch("/api/activities", {
         method: "POST",
@@ -488,7 +569,7 @@ function CreateActivityDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && !busy && onClose(false)}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New Activity</DialogTitle>
           <DialogDescription>
@@ -508,7 +589,14 @@ function CreateActivityDialog({
             {ID_FIELDS.map((f) => (
               <div key={f.key} className="space-y-2">
                 <Label>{f.label}</Label>
-                <Select value={ids[f.key]} onValueChange={(v) => setIds((prev) => ({ ...prev, [f.key]: v }))}>
+                <Select
+                  value={ids[f.key]}
+                  onValueChange={(v) => {
+                    setIds((prev) => ({ ...prev, [f.key]: v }));
+                    // Contracts are per client; a new client invalidates the pick.
+                    if (f.key === "clientId") setScope(emptyScope);
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder={`Select ${f.label.toLowerCase()}`} />
                   </SelectTrigger>
@@ -548,6 +636,7 @@ function CreateActivityDialog({
             <p className="font-mono text-sm text-navy">{preview}</p>
             <p className="text-[11px] text-slate-400 mt-0.5">#### is assigned automatically on save.</p>
           </div>
+          <ScopeEditor clientId={ids.clientId} contracts={contracts} users={users} value={scope} onChange={setScope} />
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onClose(false)} disabled={busy}>
@@ -566,12 +655,19 @@ function CreateActivityDialog({
 function EditActivityDialog({
   activity,
   cloudOptions,
+  contracts,
+  users,
   onClose,
 }: {
   activity: Activity;
   cloudOptions: MasterOption[];
+  contracts: ContractLite[];
+  users: UserOption[];
   onClose: (changed: boolean) => void;
 }) {
+  const initialScope = useMemo(() => scopeOf(activity), [activity]);
+  const [scope, setScope] = useState<ScopeValue>(initialScope);
+  const scopeChanged = JSON.stringify(scope) !== JSON.stringify(initialScope);
   const [name, setName] = useState(activity.name);
   const [cloudOnPremId, setCloudOnPremId] = useState<string>(
     activity.cloudOnPrem ? String(activity.cloudOnPrem.id) : NONE
@@ -584,6 +680,10 @@ function EditActivityDialog({
 
   async function save() {
     if (!name.trim()) return toast.error("Name is required");
+    // A legacy Activity may be saved without a contract; once one is chosen,
+    // the whole scope must be valid.
+    const problem = scope.contractId || activity.contract ? scopeProblem(scope) : null;
+    if (problem) return toast.error(problem);
     setBusy(true);
     try {
       const r = await fetch("/api/activities", {
@@ -594,6 +694,7 @@ function EditActivityDialog({
           name: name.trim(),
           cloudOnPremId: cloudOnPremId === NONE ? null : Number(cloudOnPremId),
           isActive,
+          ...(scopeChanged ? scopePayload(scope) : {}),
         }),
       });
       const j = await readJson(r);
@@ -601,7 +702,12 @@ function EditActivityDialog({
         toast.error(j.error || "Update failed");
         return;
       }
-      toast.success("Activity updated");
+      const sc = j.scope as null | { deactivated: string[] };
+      toast.success(
+        sc?.deactivated.length
+          ? `Activity updated. Deactivated (has logged time): ${sc.deactivated.join(", ")}`
+          : "Activity updated"
+      );
       onClose(true);
     } finally {
       setBusy(false);
@@ -618,7 +724,7 @@ function EditActivityDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && !busy && onClose(false)}>
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Activity</DialogTitle>
           <DialogDescription>
@@ -655,6 +761,19 @@ function EditActivityDialog({
               </Select>
             </div>
           </div>
+          {!activity.contract && (
+            <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              This Activity predates contracts. Attaching a contract links its existing tasks to SOW tasks with the
+              same code. Tasks with no match are deactivated if they have logged time, otherwise removed.
+            </p>
+          )}
+          <ScopeEditor
+            clientId={String(activity.client.id)}
+            contracts={contracts}
+            users={users}
+            value={scope}
+            onChange={setScope}
+          />
           <div className="flex items-center gap-2">
             <Checkbox id="activity-active" checked={isActive} onCheckedChange={(v) => setIsActive(v === true)} />
             <Label htmlFor="activity-active" className="normal-case tracking-normal font-medium text-slate-700">
@@ -733,17 +852,24 @@ function TaskDialog({
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-2 col-span-1">
               <Label>Task ID</Label>
-              <Input placeholder="SUP" value={taskId} onChange={(e) => setTaskId(e.target.value)} />
+              <Input
+                placeholder="SUP"
+                value={taskId}
+                disabled={task?.contractTaskId != null}
+                onChange={(e) => setTaskId(e.target.value)}
+              />
             </div>
             <div className="space-y-2 col-span-2">
               <Label>Task name</Label>
               <Input placeholder="Beeline task name" value={taskName} onChange={(e) => setTaskName(e.target.value)} />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>PO Reference (optional)</Label>
-            <Input placeholder="STC/SOW/08OCT2025/01" value={poRef} onChange={(e) => setPoRef(e.target.value)} />
-          </div>
+          {task?.contractTaskId == null && (
+            <div className="space-y-2">
+              <Label>PO Reference (optional)</Label>
+              <Input placeholder="STC/SOW/08OCT2025/01" value={poRef} onChange={(e) => setPoRef(e.target.value)} />
+            </div>
+          )}
           {task && (
             <div className="flex items-center gap-2">
               <Checkbox id="task-active" checked={isActive} onCheckedChange={(v) => setIsActive(v === true)} />

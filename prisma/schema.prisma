@@ -46,7 +46,8 @@ model User {
   timesheetQueriesOpened   TimesheetQuery[]          @relation("QueryOpenedBy")
   timesheetQueriesResolved TimesheetQuery[]          @relation("QueryResolvedBy")
 
-  contractsCreated Contract[] @relation("ContractCreator")
+  contractsCreated    Contract[]       @relation("ContractCreator")
+  activityMemberships ActivityMember[]
 }
 
 enum MasterType {
@@ -84,6 +85,7 @@ model Master {
   contractRates       ContractRate[]       @relation("ContractRateResource")
   contractTasks       ContractTask[]       @relation("ContractTaskMaster")
   contractTaskBudgets ContractTaskBudget[] @relation("ContractBudgetResource")
+  activityMembers     ActivityMember[]     @relation("ActivityMemberResource")
 
   @@unique([type, code])
   @@index([type])
@@ -114,8 +116,9 @@ model Contract {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  rates ContractRate[]
-  tasks ContractTask[]
+  rates      ContractRate[]
+  tasks      ContractTask[]
+  activities Activity[]
 
   @@index([clientId])
   @@index([status])
@@ -145,7 +148,8 @@ model ContractTask {
   taskMaster   Master   @relation("ContractTaskMaster", fields: [taskMasterId], references: [id])
   sortOrder    Int      @default(0)
 
-  budgets ContractTaskBudget[]
+  budgets       ContractTaskBudget[]
+  activityTasks Task[]
 
   @@unique([contractId, taskMasterId])
 }
@@ -187,31 +191,59 @@ model Activity {
   cloudOnPremId Int?
   cloudOnPrem   Master? @relation("ActivityCloud", fields: [cloudOnPremId], references: [id])
 
+  // Season 2: the SOW this Activity executes. Nullable only for rows created
+  // before contracts existed; the API requires it for new Activities.
+  contractId Int?
+  contract   Contract? @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   tasks          Task[]
+  members        ActivityMember[]
   timesheets     Timesheet[]
-  sandboxEntries SandboxEntry[] @relation("SandboxActivity")
+  sandboxEntries SandboxEntry[]   @relation("SandboxActivity")
 
   @@index([clientId])
   @@index([typeId])
+  @@index([contractId])
+}
+
+// Who may log time on an Activity, and at which commercial role (a
+// RESOURCE_TYPE that has a rate on the Activity's contract).
+model ActivityMember {
+  activityId     Int
+  activity       Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  userId         Int
+  user           User     @relation(fields: [userId], references: [id])
+  resourceTypeId Int
+  resourceType   Master   @relation("ActivityMemberResource", fields: [resourceTypeId], references: [id])
+
+  @@id([activityId, userId])
+  @@index([userId])
+  @@index([resourceTypeId])
 }
 
 model Task {
-  id         Int      @id @default(autoincrement())
-  taskId     String
-  taskName   String
-  poRef      String?
-  activityId Int
-  activity   Activity @relation(fields: [activityId], references: [id])
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
+  id             Int           @id @default(autoincrement())
+  taskId         String
+  taskName       String
+  poRef          String?
+  activityId     Int
+  activity       Activity      @relation(fields: [activityId], references: [id])
+  // The SOW scope line this Activity task delivers (null for pre-contract
+  // tasks). Must belong to the Activity's contract.
+  contractTaskId Int?
+  contractTask   ContractTask? @relation(fields: [contractTaskId], references: [id], onDelete: Restrict)
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
 
   timesheets Timesheet[]
 
+  @@unique([activityId, contractTaskId])
   @@index([activityId])
+  @@index([contractTaskId])
 }
 
 model Timesheet {

@@ -40,6 +40,19 @@ export const activitySchema = z.object({
   moduleId: z.coerce.number().int().positive(),
   cloudOnPremId: z.coerce.number().int().positive().optional().nullable(),
   isActive: z.boolean().optional(),
+  // Season 2 scope (see lib/activity-scope.ts). Required on create; on update
+  // sending contractId replaces the task subset and members.
+  contractId: z.coerce.number().int().positive().optional(),
+  contractTaskIds: z.array(z.coerce.number().int().positive()).max(300).optional(),
+  members: z
+    .array(
+      z.object({
+        userId: z.coerce.number().int().positive(),
+        resourceTypeId: z.coerce.number().int().positive(),
+      })
+    )
+    .max(500)
+    .optional(),
 });
 
 export const taskSchema = z.object({
