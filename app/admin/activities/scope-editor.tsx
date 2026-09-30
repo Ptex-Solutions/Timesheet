@@ -121,7 +121,7 @@ export function ScopeEditor({
                 {value.taskIds.length} of {contract.tasks.length} selected
               </span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
               {contract.tasks.map((t) => (
                 <label
                   key={t.id}

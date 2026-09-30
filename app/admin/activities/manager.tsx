@@ -570,7 +570,7 @@ function CreateActivityDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && !busy && onClose(false)}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-5xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New Activity</DialogTitle>
           <DialogDescription>
@@ -586,7 +586,7 @@ function CreateActivityDialog({
               placeholder="e.g. SUMM Cloud Development"
             />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {ID_FIELDS.map((f) => (
               <div key={f.key} className="space-y-2">
                 <Label>{f.label}</Label>
@@ -725,7 +725,7 @@ function EditActivityDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && !busy && onClose(false)}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] max-w-5xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Activity</DialogTitle>
           <DialogDescription>
@@ -737,7 +737,7 @@ function EditActivityDialog({
             <Label>Name</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {fixed.map(({ label, m }) => (
               <div key={label} className="space-y-2">
                 <Label>{label}</Label>
