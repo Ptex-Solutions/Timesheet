@@ -21,7 +21,13 @@ export default async function TimesheetDetailPage({ params }: { params: { id: st
   const id = parseInt(params.id, 10);
   const ts = await prisma.timesheet.findUnique({
     where: { id },
-    include: { user: true, client: true, activity: true, task: true },
+    include: {
+      user: true,
+      client: true,
+      activity: { include: { contract: { select: { code: true } } } },
+      task: true,
+      resourceType: { select: { code: true, description: true } },
+    },
   });
   // Drafts are private to the employee until submitted.
   if (!ts || ts.status === "DRAFT") notFound();
@@ -54,7 +60,15 @@ export default async function TimesheetDetailPage({ params }: { params: { id: st
               <Field label="Activity ID" value={ts.activity.activityId} mono />
               <Field label="Activity Description" value={ts.activity.name} />
               <Field label="Task" value={`${ts.task.taskId} – ${ts.task.taskName}`} />
-              {ts.task.poRef && <Field label="PO Reference" value={ts.task.poRef} mono />}
+              {(ts.activity.contract?.code ?? ts.task.poRef) && (
+                <Field label="SOW / PO Reference" value={ts.activity.contract?.code ?? ts.task.poRef!} mono />
+              )}
+              {ts.resourceType && (
+                <Field
+                  label="Billing Role"
+                  value={`${ts.resourceType.code}${ts.resourceType.description ? ` (${ts.resourceType.description})` : ""}`}
+                />
+              )}
               <Field label="Date" value={formatDate(ts.date)} />
               <Field label="Week" value={`Week ${ts.weekNo} · ${ts.weekLabel}`} />
               <Field label="Hours" value={`${Number(ts.hours).toFixed(2)} h (${ts.minutes} mins)`} highlight />

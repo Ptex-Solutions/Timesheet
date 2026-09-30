@@ -80,12 +80,13 @@ model Master {
   timesheets          Timesheet[]    @relation("TimesheetClient")
   sandboxRows         SandboxEntry[] @relation("SandboxClient")
 
-  contractsAsClient   Contract[]           @relation("ContractClient")
-  contractsAsCurrency Contract[]           @relation("ContractCurrency")
-  contractRates       ContractRate[]       @relation("ContractRateResource")
-  contractTasks       ContractTask[]       @relation("ContractTaskMaster")
-  contractTaskBudgets ContractTaskBudget[] @relation("ContractBudgetResource")
-  activityMembers     ActivityMember[]     @relation("ActivityMemberResource")
+  contractsAsClient    Contract[]           @relation("ContractClient")
+  contractsAsCurrency  Contract[]           @relation("ContractCurrency")
+  contractRates        ContractRate[]       @relation("ContractRateResource")
+  contractTasks        ContractTask[]       @relation("ContractTaskMaster")
+  contractTaskBudgets  ContractTaskBudget[] @relation("ContractBudgetResource")
+  activityMembers      ActivityMember[]     @relation("ActivityMemberResource")
+  timesheetsAsResource Timesheet[]          @relation("TimesheetResourceType")
 
   @@unique([type, code])
   @@index([type])
@@ -263,6 +264,12 @@ model Timesheet {
   hours       Decimal  @db.Decimal(5, 2)
   minutes     Int
   type        String
+
+  // Billing role (RESOURCE_TYPE) of the author on this Activity, snapshotted
+  // from ActivityMember when the owner saves, so later membership changes
+  // don't rewrite past billing. Null for pre-contract entries.
+  resourceTypeId Int?
+  resourceType   Master? @relation("TimesheetResourceType", fields: [resourceTypeId], references: [id], onDelete: Restrict)
 
   sat Decimal @default(0) @db.Decimal(5, 2)
   sun Decimal @default(0) @db.Decimal(5, 2)

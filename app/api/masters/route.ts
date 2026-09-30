@@ -25,12 +25,13 @@ async function masterReferenceCount(id: number): Promise<number> {
         ],
       },
     }),
-    prisma.timesheet.count({ where: { clientId: id } }),
+    prisma.timesheet.count({ where: { OR: [{ clientId: id }, { resourceTypeId: id }] } }),
     prisma.sandboxEntry.count({ where: { clientId: id } }),
     prisma.contract.count({ where: { OR: [{ clientId: id }, { currencyId: id }] } }),
     prisma.contractRate.count({ where: { resourceTypeId: id } }),
     prisma.contractTask.count({ where: { taskMasterId: id } }),
     prisma.contractTaskBudget.count({ where: { resourceTypeId: id } }),
+    prisma.activityMember.count({ where: { resourceTypeId: id } }),
   ]);
   return counts.reduce((a, b) => a + b, 0);
 }
