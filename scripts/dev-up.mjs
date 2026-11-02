@@ -17,6 +17,7 @@ import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { docker, dockerMode, dockerProblem } from "./docker.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ENV_FILE = path.join(ROOT, ".env");
@@ -123,16 +124,16 @@ async function ensureDatabase() {
   }
 
   c.info(`Nothing listening on ${host}:${port} — starting MySQL in Docker…`);
-  if (!runQuiet("docker", ["info"]).ok) {
-    c.fail(
-      "Docker isn't running (or isn't installed).\n" +
-        "  • Install/start Docker Desktop: https://www.docker.com/products/docker-desktop/\n" +
-        "  • Or point DATABASE_URL in .env at a MySQL 8 server you already have."
-    );
+  // Native docker, or Docker inside WSL when Windows has none (scripts/docker.mjs).
+  const mode = dockerMode();
+  if (!mode) {
+    c.fail(dockerProblem() + "\n  • Or point DATABASE_URL in .env at a MySQL 8 server you already have.");
   }
+  if (mode === "wsl") c.info("Using Docker inside WSL");
 
-  // Publish the container on the same port DATABASE_URL expects.
-  if (!run("docker", ["compose", "up", "-d", "db"], { env: { ...process.env, DB_PORT: String(port) } })) {
+  // Publish the container on the same port DATABASE_URL expects. WSL2
+  // forwards localhost ports to Windows, so the app still uses localhost.
+  if (!docker(["compose", "up", "-d", "db"], { env: { ...process.env, DB_PORT: String(port) } }).ok) {
     c.fail("`docker compose up -d db` failed — see the output above");
   }
 
@@ -140,12 +141,17 @@ async function ensureDatabase() {
   const deadline = Date.now() + 180_000;
   let status = "";
   while (Date.now() < deadline) {
-    status = runQuiet("docker", ["inspect", "-f", "{{.State.Health.Status}}", CONTAINER]).out;
+    status = docker(["inspect", "-f", "{{.State.Health.Status}}", CONTAINER], { quiet: true }).out;
     if (status === "healthy" && (await canConnect(host, port))) break;
-    if (status === "unhealthy") c.fail(`Container ${CONTAINER} is unhealthy. Check: docker logs ${CONTAINER}`);
+    if (status === "unhealthy") c.fail(`Container ${CONTAINER} is unhealthy. Check: npm run db:logs`);
     await sleep(2000);
   }
-  if (status !== "healthy") c.fail(`MySQL didn't become ready in time. Check: docker logs ${CONTAINER}`);
+  if (status !== "healthy") {
+    c.fail(
+      "MySQL didn't become ready in time. Check: npm run db:logs" +
+        (mode === "wsl" ? "\n  If the container is healthy but unreachable, check WSL localhost forwarding (.wslconfig)." : "")
+    );
+  }
   c.ok(`MySQL container ${CONTAINER} is up on ${host}:${port}`);
 }
 
