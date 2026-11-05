@@ -14,7 +14,7 @@ npm run db:setup         # same without starting next dev; also db:up / db:down 
 npm run dev              # dev server on http://localhost:3000
 npm run build            # prisma generate + next build
 npm run start            # run production build (or `node server.js`, custom HTTP server on :3000, dev:false)
-npm run lint             # next lint
+npm run typecheck        # tsc --noEmit (no ESLint: removed, it only brought deprecated deps)
 npm run prisma:push      # sync schema to DB without migration files (what README setup uses)
 npm run prisma:migrate   # create + apply migration (prisma/migrations/)
 npm run prisma:seed      # tsx prisma/seed.ts — masters/activities/tasks + demo users

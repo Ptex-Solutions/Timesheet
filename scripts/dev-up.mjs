@@ -208,8 +208,8 @@ async function seedIfEmpty() {
 function startDev() {
   c.step("Starting the dev server (Ctrl+C to stop)");
   const child = IS_WIN
-    ? spawn("npx next dev", { cwd: ROOT, stdio: "inherit", shell: true })
-    : spawn("npx", ["next", "dev"], { cwd: ROOT, stdio: "inherit" });
+    ? spawn("npx next dev --turbo", { cwd: ROOT, stdio: "inherit", shell: true })
+    : spawn("npx", ["next", "dev", "--turbo"], { cwd: ROOT, stdio: "inherit" });
   const forward = (sig) => () => child.kill(sig);
   process.on("SIGINT", forward("SIGINT"));
   process.on("SIGTERM", forward("SIGTERM"));
