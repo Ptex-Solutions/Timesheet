@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentAccess } from "@/lib/authz";
 import { activityAdminInclude } from "@/lib/activity-service";
 import { ACTIVITY_MASTER_TYPES } from "@/lib/master-types";
-import { Topbar } from "@/components/shared/topbar";
+import { Topbar } from "@/components/shared/app-topbar";
 import { PageHeader } from "@/components/shared/page-header";
 import { ActivitiesPanel, type MasterOption, type MastersByType } from "./manager";
 

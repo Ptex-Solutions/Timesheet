@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCurrentAccess } from "@/lib/authz";
 import { contractDetailInclude } from "@/lib/contract-service";
-import { Topbar } from "@/components/shared/topbar";
+import { Topbar } from "@/components/shared/app-topbar";
 import { PageHeader } from "@/components/shared/page-header";
 import { ContractEditor } from "../editor";
 import { loadContractMasters, toFormValue } from "../data";

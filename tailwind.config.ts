@@ -5,6 +5,8 @@ const config: Config = {
   content: [
     "./app/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
+    // Seqrite holds a lock on this (unused) file; reading it hangs Tailwind.
+    "!./components/shared/topbar.tsx",
     "./lib/**/*.{ts,tsx}",
   ],
   theme: {

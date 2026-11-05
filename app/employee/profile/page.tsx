@@ -1,7 +1,7 @@
 import { Mail, ShieldCheck, IdCard, Calendar } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Topbar } from "@/components/shared/topbar";
+import { Topbar } from "@/components/shared/app-topbar";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";

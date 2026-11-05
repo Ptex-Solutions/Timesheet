@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentAccess } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
-import { Topbar } from "@/components/shared/topbar";
+import { Topbar } from "@/components/shared/app-topbar";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { NewSandboxForm } from "./form";

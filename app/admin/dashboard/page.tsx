@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Building2, Clock, Users, FileSpreadsheet, ArrowRight, BarChart3, LayoutDashboard, MessageSquareWarning } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentAccess } from "@/lib/authz";
-import { Topbar } from "@/components/shared/topbar";
+import { Topbar } from "@/components/shared/app-topbar";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatCard } from "@/components/shared/stat-card";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
