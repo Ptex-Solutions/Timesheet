@@ -254,10 +254,16 @@ export async function syncEmployeesToDb(employees: ZohoEmployee[]) {
     });
 
     if (existing) {
+      // Don't overwrite email if another user already owns the Zoho email
+      const emailOwner = emp.email
+        ? await prisma.user.findFirst({ where: { email: emp.email, NOT: { id: existing.id } }, select: { id: true } })
+        : null;
+      const emailTaken = Boolean(emailOwner);
       await prisma.user.update({
         where: { id: existing.id },
         data: {
           name: emp.name,
+          ...(emp.email && emp.email.toLowerCase() !== existing.email.toLowerCase() && !emailTaken ? { email: emp.email } : {}),
           employeeCode: emp.code,
           isActive: true,
           ...(doj ? { createdAt: doj } : {}),

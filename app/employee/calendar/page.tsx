@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useSession } from "next-auth/react";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Topbar } from "@/components/shared/topbar";
@@ -13,7 +12,6 @@ import {
   HolidayItem,
   LeaveItem,
   LeaveQuota,
-  formatNum,
   CalendarMetrics,
   CalendarGrid,
   DayInspector,
@@ -22,8 +20,6 @@ import {
 import { syncEmployeeLeaves } from "./actions";
 
 export default function EmployeeCalendarPage() {
-  const { data: session } = useSession();
-  const userName = session?.user?.name || "Employee";
 
   const today = new Date();
   const [currentYear, setCurrentYear] = useState(today.getFullYear());

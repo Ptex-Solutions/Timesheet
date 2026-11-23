@@ -181,64 +181,50 @@ export async function syncEmployeeLeaves(): Promise<{
   let rawQuotaMap: Record<string, { total?: number; taken?: number; remaining?: number }> = {};
 
   try {
-    // 1. Fetch user leave records from Zoho People
-    const recordsEndpoints = [
-      `https://people.zoho.com/people/api/forms/leave/getRecords?sIndex=1&limit=500`,
-      `https://people.zoho.com/people/api/forms/leave/getRecords?searchColumn=Employee_ID&searchValue=${encodeURIComponent(employeeCode)}`,
-      `https://people.zoho.com/api/forms/leave/getRecords?sIndex=1&limit=500`,
-      `https://people.zoho.com/people/api/forms/leave/getRecords`,
-    ];
-
+    // 1. Fetch employee leave applications from Zoho People
+    const recordsUrl = `https://people.zoho.com/people/api/forms/leave/getRecords?sIndex=1&limit=500`;
     let rawLeaves: any[] = [];
     const cleanEmpCode = employeeCode.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-    for (const url of recordsEndpoints) {
-      try {
-        const res = await fetch(url, {
-          headers: { Authorization: `Zoho-oauthtoken ${token}` },
-        });
+    try {
+      const res = await fetch(recordsUrl, {
+        headers: { Authorization: `Zoho-oauthtoken ${token}` },
+      });
 
-        if (res.ok) {
-          const data = await res.json();
-          const unpacked = unpackZohoResult(data);
+      if (res.ok) {
+        const data = await res.json();
+        const unpacked = unpackZohoResult(data);
 
-          if (unpacked.length > 0) {
-            // Filter records to this specific employee
-            const matched = unpacked.filter((r) => {
-              const empText = [
-                r["Employee_ID"],
-                r["AddedBy"],
-                r["ModifiedBy"],
-                r["Employee_Name"],
-                r["EmployeeID"],
-                r["Emp ID"],
-                r["TeamEmailID"],
-                r["EmailID"],
-              ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase();
+        if (unpacked.length > 0) {
+          rawLeaves = unpacked.filter((r) => {
+            const empText = [
+              r["Employee_ID"],
+              r["AddedBy"],
+              r["ModifiedBy"],
+              r["Employee_Name"],
+              r["EmployeeID"],
+              r["Emp ID"],
+              r["TeamEmailID"],
+              r["EmailID"],
+            ]
+              .filter(Boolean)
+              .join(" ")
+              .toLowerCase();
 
-              const codeMatch = Boolean(employeeCode && empText.includes(employeeCode.toLowerCase()));
-              const cleanCodeMatch = Boolean(cleanEmpCode && empText.replace(/[^a-z0-9]/g, "").includes(cleanEmpCode));
-              const emailMatch = Boolean(userEmail && empText.includes(userEmail));
-              const nameMatch = Boolean(userName && userName.length > 2 && empText.includes(userName.toLowerCase()));
+            const codeMatch = Boolean(employeeCode && empText.includes(employeeCode.toLowerCase()));
+            const cleanCodeMatch = Boolean(cleanEmpCode && empText.replace(/[^a-z0-9]/g, "").includes(cleanEmpCode));
+            const emailMatch = Boolean(userEmail && empText.includes(userEmail));
+            const nameMatch = Boolean(userName && userName.length > 2 && empText.includes(userName.toLowerCase()));
 
-              return codeMatch || cleanCodeMatch || emailMatch || nameMatch;
-            });
-
-            if (matched.length > 0) {
-              rawLeaves = matched;
-              break;
-            }
-          }
+            return codeMatch || cleanCodeMatch || emailMatch || nameMatch;
+          });
         }
-      } catch (err) {
-        console.warn(`Zoho records endpoint ${url} failed:`, err);
       }
+    } catch (err) {
+      console.warn("Zoho leave records fetch error:", err);
     }
 
-    // Process leave items and calculate calendar days (excluding weekends & holidays)
+    // Process leave items and calculate calendar working days (excluding weekends & holidays)
     for (let i = 0; i < rawLeaves.length; i++) {
       const r = rawLeaves[i];
 
@@ -262,7 +248,7 @@ export async function syncEmployeeLeaves(): Promise<{
       const zohoId = r["Zoho_ID"] || r["recordId"] || `zoho-leave-${i}`;
 
       const allDates = getDatesInRange(formattedFrom, formattedTo);
-      // Filter out weekends (Saturday/Sunday) and company holidays
+      // Filter out weekends (Saturday/Sunday) and company holidays - leaves apply only to working days
       const workingLeaveDates = allDates.filter((dStr) => {
         const dObj = new Date(dStr + "T00:00:00");
         const dayOfWeek = dObj.getDay();
@@ -271,7 +257,7 @@ export async function syncEmployeeLeaves(): Promise<{
         return !isWeekend && !isHoliday;
       });
 
-      const datesToUse = workingLeaveDates.length > 0 ? workingLeaveDates : allDates;
+      const datesToUse = workingLeaveDates;
       const daysPerDate = totalDays <= 1 ? totalDays : 1;
 
       for (let d = 0; d < datesToUse.length; d++) {
@@ -289,109 +275,93 @@ export async function syncEmployeeLeaves(): Promise<{
       }
     }
 
-    // 2. Dynamically fetch user leave balance / quota from Zoho People API using Employee_ID
-    const balanceEndpoints = [
-      `https://people.zoho.com/people/api/forms/leavebalance/getRecords?searchColumn=Employee_ID&searchValue=${encodeURIComponent(employeeCode)}`,
-      `https://people.zoho.com/people/api/forms/leavebalance/getRecords?sIndex=1&limit=500`,
-      `https://people.zoho.com/people/api/leave/getUserBalance?searchColumn=EMPLOYEEID&searchValue=${encodeURIComponent(employeeCode)}`,
-      `https://people.zoho.com/people/api/leave/getUserBalance?searchColumn=EMPLOYEEMAILID&searchValue=${encodeURIComponent(userEmail)}`,
-      `https://people.zoho.com/api/forms/leavebalance/getRecords`,
-    ];
+    // 2. Resolve Zoho User Record ID (zohoUserId) to query getLeaveTypeDetails API
+    let zohoUserId: string | null = null;
 
-    for (const bUrl of balanceEndpoints) {
+    // Check if any leave record has Employee_ID.ID or ModifiedBy.ID or AddedBy.ID
+    for (const r of rawLeaves) {
+      const zId = r["Employee_ID.ID"] || r["ModifiedBy.ID"] || r["AddedBy.ID"];
+      if (zId && typeof zId === "string" && zId.length > 5) {
+        zohoUserId = zId;
+        break;
+      }
+    }
+
+    // If not found in leave records, fetch from employee records
+    if (!zohoUserId && employeeCode) {
       try {
-        const bRes = await fetch(bUrl, {
+        const empUrl = `https://people.zoho.com/people/api/forms/employee/getRecords?searchColumn=EMPLOYEEID&searchValue=${encodeURIComponent(employeeCode)}`;
+        const eRes = await fetch(empUrl, {
           headers: { Authorization: `Zoho-oauthtoken ${token}` },
         });
-
-        if (bRes.ok) {
-          const bData = await bRes.json();
-          const unpackedBalance = unpackZohoResult(bData);
-
-          if (unpackedBalance.length > 0) {
-            const matchedBal = unpackedBalance.filter((bObj) => {
-              const empText = [
-                bObj["Employee_ID"],
-                bObj["AddedBy"],
-                bObj["ModifiedBy"],
-                bObj["Employee_Name"],
-                bObj["EmployeeID"],
-                bObj["Emp ID"],
-                bObj["TeamEmailID"],
-                bObj["EmailID"],
-              ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase();
-
-              if (!empText) return true;
-              const codeMatch = Boolean(employeeCode && empText.includes(employeeCode.toLowerCase()));
-              const cleanCodeMatch = Boolean(cleanEmpCode && empText.replace(/[^a-z0-9]/g, "").includes(cleanEmpCode));
-              const emailMatch = Boolean(userEmail && empText.includes(userEmail));
-              const nameMatch = Boolean(userName && userName.length > 2 && empText.includes(userName.toLowerCase()));
-
-              return codeMatch || cleanCodeMatch || emailMatch || nameMatch;
-            });
-
-            if (matchedBal.length > 0) {
-              for (const bObj of matchedBal) {
-                const typeName = String(bObj["Leavetype"] || bObj["LeaveType"] || bObj["leaveTypeName"] || bObj["Leave type"] || bObj["Name"] || "").toLowerCase();
-                const bal = parseFloat(
-                  bObj["Available_Balance"] ||
-                  bObj["BalanceCount"] ||
-                  bObj["ClosingBalance"] ||
-                  bObj["Closing_Balance"] ||
-                  bObj["availableBalance"] ||
-                  bObj["AvailableBalance"] ||
-                  bObj["Remaining"] ||
-                  bObj["balance"] ||
-                  bObj["Balance"] ||
-                  "0"
-                );
-                const taken = parseFloat(
-                  bObj["TakenCount"] ||
-                  bObj["Booked"] ||
-                  bObj["BookedCount"] ||
-                  bObj["taken"] ||
-                  bObj["takenCount"] ||
-                  bObj["TotalTaken"] ||
-                  bObj["DaysTaken"] ||
-                  bObj["Availed"] ||
-                  "0"
-                );
-                const total = parseFloat(
-                  bObj["Total_Allowed"] ||
-                  bObj["TotalCount"] ||
-                  bObj["Entitled"] ||
-                  bObj["total"] ||
-                  bObj["Total"] ||
-                  bObj["eligible"] ||
-                  bObj["TotalAllowed"] ||
-                  "0"
-                );
-
-                if (typeName.includes("privilege") || typeName.includes("annual") || typeName.includes("earned") || typeName.includes("pl")) {
-                  if (!isNaN(bal) && bal >= 0) dynamicPrivilegeBalance = bal;
-                  rawQuotaMap["Privilege Leave"] = {
-                    total: !isNaN(total) && total > 0 ? total : undefined,
-                    taken: !isNaN(taken) && taken > 0 ? taken : undefined,
-                    remaining: !isNaN(bal) ? bal : undefined,
-                  };
-                } else if (typeName.includes("comp") || typeName.includes("compensatory") || typeName.includes("co")) {
-                  if (!isNaN(bal) && bal >= 0) dynamicCompOffBalance = bal;
-                  rawQuotaMap["Compensatory Off"] = {
-                    total: !isNaN(total) && total > 0 ? total : undefined,
-                    taken: !isNaN(taken) && taken > 0 ? taken : undefined,
-                    remaining: !isNaN(bal) ? bal : undefined,
-                  };
-                }
+        if (eRes.ok) {
+          const eData = await eRes.json();
+          const resObj = eData?.response?.result;
+          if (Array.isArray(resObj)) {
+            for (const item of resObj) {
+              for (const [key] of Object.entries(item)) {
+                zohoUserId = key;
+                break;
               }
-              break;
+              if (zohoUserId) break;
             }
           }
         }
       } catch (err) {
-        console.warn(`Zoho balance endpoint ${bUrl} failed:`, err);
+        console.warn("Could not resolve Zoho User ID from employee form:", err);
+      }
+    }
+
+    // 3. Dynamically fetch user leave balance / quota from Zoho People getLeaveTypeDetails API
+    if (zohoUserId) {
+      try {
+        const ltUrl = `https://people.zoho.com/people/api/leave/getLeaveTypeDetails?userId=${zohoUserId}`;
+        const ltRes = await fetch(ltUrl, {
+          headers: { Authorization: `Zoho-oauthtoken ${token}` },
+        });
+
+        if (ltRes.ok) {
+          const ltData = await ltRes.json();
+          const resultList = ltData?.response?.result;
+
+          if (Array.isArray(resultList) && resultList.length > 0) {
+            for (const bObj of resultList) {
+              const typeName = String(bObj["Name"] || bObj["Type"] || bObj["Leavetype"] || "").toLowerCase();
+              const bal = parseFloat(String(bObj["BalanceCount"] ?? bObj["Balance"] ?? "0"));
+              const taken = parseFloat(String(bObj["AvailedCount"] ?? bObj["TakenCount"] ?? "0"));
+              const permitted = parseFloat(String(bObj["PermittedCount"] ?? "0"));
+
+              const validBal = !isNaN(bal) ? bal : 0;
+              const validTaken = !isNaN(taken) ? taken : 0;
+              const validPermitted = !isNaN(permitted) && permitted > 0 ? permitted : validBal + validTaken;
+
+              if (typeName.includes("privilege") || typeName.includes("annual") || typeName.includes("earned") || typeName.includes("pl")) {
+                dynamicPrivilegeBalance = validBal;
+                rawQuotaMap["Privilege Leave"] = {
+                  total: validPermitted,
+                  taken: validTaken,
+                  remaining: validBal,
+                };
+              } else if (typeName.includes("comp") || typeName.includes("compensatory") || typeName.includes("co")) {
+                dynamicCompOffBalance = validBal;
+                rawQuotaMap["Compensatory Off"] = {
+                  total: validPermitted,
+                  taken: validTaken,
+                  remaining: validBal,
+                };
+              } else {
+                const displayName = String(bObj["Name"] || bObj["Type"] || "Leave");
+                rawQuotaMap[displayName] = {
+                  total: validPermitted,
+                  taken: validTaken,
+                  remaining: validBal,
+                };
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Zoho getLeaveTypeDetails failed:", err);
       }
     }
   } catch (err) {

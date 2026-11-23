@@ -55,20 +55,19 @@ export function formatFullDate(dateStr: string): string {
 
 // Company Holidays for 2026
 export const INITIAL_HOLIDAYS: HolidayItem[] = [
-  { id: "h1", date: "2026-01-01", title: "New Year's Day", type: "COMPANY_HOLIDAY", description: "First day of the year" },
-  { id: "h2", date: "2026-01-26", title: "Republic Day", type: "PUBLIC_HOLIDAY", description: "National Republic Day celebration" },
-  { id: "h3", date: "2026-03-04", title: "Maha Shivratri", type: "COMPANY_HOLIDAY", description: "Festival of Lord Shiva" },
-  { id: "h4", date: "2026-03-20", title: "Eid-ul-Fitr", type: "PUBLIC_HOLIDAY", description: "Islamic festival" },
-  { id: "h5", date: "2026-03-25", title: "Holi", type: "COMPANY_HOLIDAY", description: "Festival of Colors" },
-  { id: "h6", date: "2026-04-03", title: "Good Friday", type: "COMPANY_HOLIDAY", description: "Easter weekend holiday" },
-  { id: "h7", date: "2026-05-01", title: "Labor Day", type: "PUBLIC_HOLIDAY", description: "International Workers' Day" },
-  { id: "h8", date: "2026-08-15", title: "Independence Day", type: "PUBLIC_HOLIDAY", description: "National Independence Day" },
-  { id: "h9", date: "2026-09-02", title: "Janmashtami", type: "COMPANY_HOLIDAY", description: "Celebration of Lord Krishna's birth" },
-  { id: "h10", date: "2026-10-02", title: "Mahatma Gandhi Jayanti", type: "PUBLIC_HOLIDAY", description: "National holiday celebrating Gandhi's birthday" },
-  { id: "h11", date: "2026-10-20", title: "Dussehra", type: "COMPANY_HOLIDAY", description: "Vijayadashami festival" },
-  { id: "h12", date: "2026-11-08", title: "Diwali", type: "PUBLIC_HOLIDAY", description: "Festival of Lights" },
-  { id: "h13", date: "2026-11-24", title: "Guru Nanak Jayanti", type: "COMPANY_HOLIDAY", description: "Guru Nanak Gurpurab" },
-  { id: "h14", date: "2026-12-25", title: "Christmas Day", type: "COMPANY_HOLIDAY", description: "Christmas celebration" },
+  { id: "h1", date: "2026-01-01", title: "New Year", type: "COMPANY_HOLIDAY", description: "New Year celebration" },
+  { id: "h2", date: "2026-01-26", title: "Republic Day", type: "COMPANY_HOLIDAY", description: "National Republic Day" },
+  { id: "h3", date: "2026-03-03", title: "Holi", type: "COMPANY_HOLIDAY", description: "Festival of Colors" },
+  { id: "h4", date: "2026-03-19", title: "Gudi Padwa", type: "COMPANY_HOLIDAY", description: "Traditional New Year celebration" },
+  { id: "h5", date: "2026-05-01", title: "Labor Day", type: "COMPANY_HOLIDAY", description: "International Workers' Day" },
+  { id: "h6", date: "2026-08-15", title: "Independence Day", type: "COMPANY_HOLIDAY", description: "National Independence Day" },
+  { id: "h7", date: "2026-08-28", title: "Raksha Bandhan", type: "COMPANY_HOLIDAY", description: "Festival of Rakhi" },
+  { id: "h8", date: "2026-09-14", title: "Ganesh Chathurthi", type: "COMPANY_HOLIDAY", description: "Ganesh Chaturthi festival" },
+  { id: "h9", date: "2026-10-02", title: "Gandhi Jayanti", type: "COMPANY_HOLIDAY", description: "Mahatma Gandhi's Birthday" },
+  { id: "h10", date: "2026-10-20", title: "Dasera", type: "COMPANY_HOLIDAY", description: "Vijayadashami festival" },
+  { id: "h11", date: "2026-11-08", title: "Diwali", type: "COMPANY_HOLIDAY", description: "Deepavali festival of lights" },
+  { id: "h12", date: "2026-11-10", title: "Hindu New Year", type: "COMPANY_HOLIDAY", description: "Nuton Varsh celebration" },
+  { id: "h13", date: "2026-11-11", title: "Bhai Beech", type: "COMPANY_HOLIDAY", description: "Bhai Dooj festival" },
 ];
 
 

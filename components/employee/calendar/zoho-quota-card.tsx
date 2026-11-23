@@ -12,19 +12,6 @@ interface ZohoQuotaCardProps {
 }
 
 export function ZohoQuotaCard({ quota, currentYear }: ZohoQuotaCardProps) {
-  const plQuota = quota.find((q) => q.type === "Privilege Leave") || {
-    total: 0,
-    taken: 0,
-    remaining: 0,
-  };
-  const compQuota = quota.find((q) => q.type === "Compensatory Off") || {
-    total: 0,
-    taken: 0,
-    remaining: 0,
-  };
-
-  const plPercentage = plQuota.total > 0 ? (plQuota.taken / plQuota.total) * 100 : 0;
-
   return (
     <Card className="border-slate-200 shadow-soft">
       <CardHeader className="pb-3 border-b border-slate-100">
@@ -39,62 +26,48 @@ export function ZohoQuotaCard({ quota, currentYear }: ZohoQuotaCardProps) {
         </div>
       </CardHeader>
       <CardContent className="p-4 space-y-3">
-        {/* Zoho Card 1: Privilege Leave */}
-        <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col gap-2.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-sky-100 text-sky-600 flex items-center justify-center">
-                <SunMedium className="h-4 w-4" />
+        {quota.map((q) => {
+          const percentage = q.total > 0 ? (q.taken / q.total) * 100 : 0;
+          const isPL = q.type === "Privilege Leave";
+          const code = isPL ? "PL" : q.type === "Compensatory Off" ? "Comp-Off" : q.type;
+
+          return (
+            <div
+              key={q.type}
+              className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col gap-2.5"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`h-8 w-8 rounded-lg flex items-center justify-center ${
+                      isPL ? "bg-sky-100 text-sky-600" : "bg-lime-100 text-lime-700"
+                    }`}
+                  >
+                    <SunMedium className="h-4 w-4" />
+                  </div>
+                  <span className="font-semibold text-xs text-slate-800">{q.type}</span>
+                </div>
+                <span className="text-[10px] text-slate-400 font-mono">{code}</span>
               </div>
-              <span className="font-semibold text-xs text-slate-800">Privilege Leave</span>
-            </div>
-            <span className="text-[10px] text-slate-400 font-mono">PL</span>
-          </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60 text-xs">
-            <div>
-              <span className="text-slate-500 text-[11px]">Available</span>
-              <p className="font-bold text-emerald-600 font-mono text-sm">
-                {formatNum(plQuota.remaining)}
-              </p>
-            </div>
-            <div>
-              <span className="text-slate-500 text-[11px]">Booked</span>
-              <p className="font-bold text-slate-800 font-mono text-sm">
-                {formatNum(plQuota.taken)}
-              </p>
-            </div>
-          </div>
-          <Progress value={plPercentage} className="h-1.5" />
-        </div>
-
-        {/* Zoho Card 2: Compensatory Off */}
-        <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col gap-2.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-lime-100 text-lime-700 flex items-center justify-center">
-                <SunMedium className="h-4 w-4" />
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60 text-xs">
+                <div>
+                  <span className="text-slate-500 text-[11px]">Available</span>
+                  <p className="font-bold text-emerald-600 font-mono text-sm">
+                    {formatNum(q.remaining)}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-[11px]">Booked</span>
+                  <p className="font-bold text-slate-800 font-mono text-sm">
+                    {formatNum(q.taken)}
+                  </p>
+                </div>
               </div>
-              <span className="font-semibold text-xs text-slate-800">Compensatory Off</span>
+              <Progress value={percentage} className="h-1.5" />
             </div>
-            <span className="text-[10px] text-slate-400 font-mono">Comp-Off</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60 text-xs">
-            <div>
-              <span className="text-slate-500 text-[11px]">Available</span>
-              <p className="font-bold text-slate-700 font-mono text-sm">
-                {formatNum(compQuota.remaining)}
-              </p>
-            </div>
-            <div>
-              <span className="text-slate-500 text-[11px]">Booked</span>
-              <p className="font-bold text-slate-700 font-mono text-sm">
-                {formatNum(compQuota.taken)}
-              </p>
-            </div>
-          </div>
-        </div>
+          );
+        })}
       </CardContent>
     </Card>
   );
