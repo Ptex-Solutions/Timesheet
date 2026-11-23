@@ -35,13 +35,13 @@ test("ACTION_LABELS and BASE_ACTIONS are as specified", () => {
 
 test("MODULES catalogue order and contents", () => {
   const keys = MODULES.map((m) => m.key);
-  assert.deepEqual(keys, ["timesheets", "mis", "masters", "activities", "sandbox", "employees", "access"]);
+  assert.deepEqual(keys, ["timesheets", "mis", "masters", "contracts", "activities", "sandbox", "employees", "access"]);
 
   // Staff never edit or delete timesheet records, so those actions don't exist.
   const timesheets = MODULES.find((m) => m.key === "timesheets")!;
   assert.deepEqual(timesheets.actions, ["view", "approve", "reopen"]);
 
-  for (const key of ["masters", "activities"] as const) {
+  for (const key of ["masters", "contracts", "activities"] as const) {
     assert.deepEqual(MODULES.find((m) => m.key === key)!.actions, ["view", "edit", "delete"]);
   }
 
@@ -86,10 +86,10 @@ test("EMPLOYEE has no default permissions", () => {
   assert.equal(perms.size, 0);
 });
 
-test("ADMIN has every permission except access.*", () => {
+test("ADMIN has every permission except access.* and contracts.*", () => {
   const perms = roleDefaults("ADMIN");
   for (const p of ALL_PERMISSIONS) {
-    if (p.startsWith("access.")) {
+    if (p.startsWith("access.") || p.startsWith("contracts.")) {
       assert.equal(perms.has(p), false, `expected ADMIN to lack ${p}`);
     } else {
       assert.equal(perms.has(p), true, `expected ADMIN to have ${p}`);
@@ -298,4 +298,11 @@ test("hasPermission works with Set and array", () => {
   assert.equal(hasPermission(set, "timesheets.view"), true);
   assert.equal(hasPermission(set, "timesheets.approve"), false);
   assert.equal(hasPermission(["timesheets.view"] as const, "timesheets.view"), true);
+});
+
+test("ADMIN can be granted contracts.view by override without other contract rights", () => {
+  const perms = resolvePermissions("ADMIN", [{ module: "contracts", action: "view", granted: true }]);
+  assert.equal(perms.has("contracts.view"), true);
+  assert.equal(perms.has("contracts.edit"), false);
+  assert.equal(perms.has("contracts.delete"), false);
 });

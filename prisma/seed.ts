@@ -1,6 +1,10 @@
 import { MasterType, PrismaClient, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { createActivity } from "../lib/activity-service";
+import { applyActivityScope } from "../lib/activity-scope";
+import { saveContract, transitionContract } from "../lib/contract-service";
+import { attachLegacyActivity, backfillLegacyActivities } from "../lib/contract-backfill";
+import { contractSchema } from "../lib/validations";
 
 const prisma = new PrismaClient();
 
@@ -39,7 +43,7 @@ async function main() {
     },
   });
 
-  await prisma.user.upsert({
+  const kv = await prisma.user.upsert({
     where: { email: "kv@ptex.com" },
     update: {},
     create: {
@@ -51,7 +55,7 @@ async function main() {
     },
   });
 
-  await prisma.user.upsert({
+  const sk = await prisma.user.upsert({
     where: { email: "sk@ptex.com" },
     update: {},
     create: {
@@ -63,7 +67,7 @@ async function main() {
     },
   });
 
-  await prisma.user.upsert({
+  const superAdmin = await prisma.user.upsert({
     where: { email: "superadmin@ptexsolutions.com" },
     update: {},
     create: {
@@ -89,7 +93,7 @@ async function main() {
   });
 
   // ---- Masters ----
-  type MasterTypeKey = "TYPE" | "CLIENT" | "PRODUCT" | "VERSION" | "MODULE" | "CLOUD_ON_PREM";
+  type MasterTypeKey = keyof typeof MasterType;
   const masterSpecs: Record<MasterTypeKey, { code: string; description?: string }[]> = {
     TYPE: [
       { code: "CR", description: "Change Request" },
@@ -120,6 +124,29 @@ async function main() {
       { code: "RPT", description: "Reporting" },
     ],
     CLOUD_ON_PREM: [{ code: "CLOUD" }, { code: "ON-PREM" }],
+    CURRENCY: [
+      { code: "GBP", description: "British Pound Sterling" },
+      { code: "INR", description: "Indian Rupee" },
+      { code: "USD", description: "United States Dollar" },
+    ],
+    // Commercial billing roles for SOW rates — not the RBAC Role enum.
+    RESOURCE_TYPE: [
+      { code: "TC", description: "Technical Consultant" },
+      { code: "LC", description: "Lead Consultant" },
+      { code: "BC", description: "Business Consultant" },
+      { code: "SA", description: "Solution Architect" },
+    ],
+    TASK: [
+      { code: "DEV", description: "Development" },
+      { code: "TEST", description: "Testing" },
+      { code: "DEPLOY", description: "Deployment" },
+      { code: "SUP", description: "Support" },
+      { code: "DOC", description: "Documentation" },
+      { code: "R&D", description: "Feasibility Study and Documentation" },
+      { code: "CONFIG", description: "Configure Application" },
+      { code: "INTERNAL", description: "Internal" },
+      { code: "YOGA", description: "Yoga" },
+    ],
   };
 
   // masters[type][code] -> Master.id
@@ -143,12 +170,87 @@ async function main() {
     create: { id: 1, current: 4389 },
   });
 
-  // ---- Activities + Tasks ----
+  // ---- Contracts (SOW) ----
+  // Rates, SOW tasks and budgeted hours per role. Created once (matched by
+  // code) and activated; totals are derived, never seeded.
+  const contractSpecs: {
+    code: string;
+    description: string;
+    client: string;
+    currency: string;
+    rates: Record<string, string>; // RESOURCE_TYPE code -> rate/hour
+    tasks: Record<string, Record<string, string>>; // TASK code -> role -> hours
+  }[] = [
+    {
+      code: "STC/SOW/08OCT2025/01",
+      description: "SUMM Cloud: development and feasibility study",
+      client: "STC",
+      currency: "GBP",
+      rates: { TC: "100", LC: "150", SA: "200" },
+      tasks: {
+        DEV: { TC: "400", LC: "120", SA: "40" },
+        "R&D": { TC: "40", SA: "24" },
+        TEST: { TC: "80", LC: "16" },
+        DEPLOY: { LC: "16", SA: "8" },
+      },
+    },
+    {
+      code: "STC/SOW/10FEB2026/04",
+      description: "SUMM8 functional support",
+      client: "STC",
+      currency: "GBP",
+      rates: { TC: "80", BC: "95" },
+      tasks: { SUP: { TC: "300", BC: "120" }, DOC: { BC: "40" } },
+    },
+    {
+      code: "ESN/SOW/20DEC2023/04",
+      description: "Client portal configuration",
+      client: "ESN",
+      currency: "USD",
+      rates: { TC: "120", BC: "140" },
+      tasks: { CONFIG: { TC: "200", BC: "60" }, TEST: { TC: "40" } },
+    },
+    {
+      code: "INT/2026/INTERNAL",
+      description: "Internal, non-billable time",
+      client: "INT",
+      currency: "INR",
+      rates: { TC: "0" },
+      tasks: { INTERNAL: { TC: "0" }, YOGA: { TC: "0" } },
+    },
+  ];
+
+  const contractIds: Record<string, number> = {};
+  for (const c of contractSpecs) {
+    const existing = await prisma.contract.findUnique({ where: { code: c.code } });
+    if (existing) {
+      contractIds[c.code] = existing.id;
+      continue;
+    }
+    const input = contractSchema.parse({
+      code: c.code,
+      description: c.description,
+      clientId: masters.CLIENT[c.client],
+      currencyId: masters.CURRENCY[c.currency],
+      rates: Object.entries(c.rates).map(([role, rate]) => ({
+        resourceTypeId: masters.RESOURCE_TYPE[role],
+        ratePerHour: rate,
+      })),
+      tasks: Object.entries(c.tasks).map(([task, hours]) => ({
+        taskMasterId: masters.TASK[task],
+        hours: Object.fromEntries(Object.entries(hours).map(([role, h]) => [masters.RESOURCE_TYPE[role], h])),
+      })),
+    });
+    const saved = await saveContract(input, { userId: superAdmin.id });
+    await transitionContract(saved.id, "activate");
+    contractIds[c.code] = saved.id;
+  }
+
+  // ---- Activities (with their SOW tasks and members) ----
   // Created via lib/activity-service.ts's createActivity, which allocates the
   // real global sequence and builds activityId (e.g. STC.ALL.CR.1.0.4390).
-  // Only seeded on the very first run (idempotent re-run just skips this
-  // block — seq allocation is one-shot and can't be "found or created" the
-  // way upserts elsewhere in this file can).
+  // Only created on the very first run; on an existing database the same
+  // specs are used to attach contracts to matching pre-contract Activities.
   const activitySpecs: {
     name: string;
     client: string;
@@ -157,7 +259,9 @@ async function main() {
     version: string;
     module: string;
     cloudOnPrem?: string;
-    tasks: { taskId: string; taskName: string; poRef: string | null }[];
+    contract: string;
+    tasks: string[]; // TASK codes from the contract
+    members: [number, string][]; // [userId, RESOURCE_TYPE code]
   }[] = [
     {
       name: "SUMM Cloud Development",
@@ -167,10 +271,22 @@ async function main() {
       version: "1.0",
       module: "ALL",
       cloudOnPrem: "CLOUD",
-      tasks: [
-        { taskId: "DEV", taskName: "SUMM Cloud - Development", poRef: "STC/SOW/08OCT2025/01" },
-        { taskId: "R&D", taskName: "SUMM Cloud - Feasibility Study and Documentation", poRef: null },
-      ],
+      contract: "STC/SOW/08OCT2025/01",
+      tasks: ["DEV", "R&D"],
+      members: [[taha.id, "TC"], [kv.id, "TC"], [sk.id, "LC"]],
+    },
+    {
+      // Same SOW, different Activity: testing and deployment are run separately.
+      name: "SUMM Cloud Release",
+      client: "STC",
+      type: "CR",
+      product: "SUM",
+      version: "1.0",
+      module: "ALL",
+      cloudOnPrem: "CLOUD",
+      contract: "STC/SOW/08OCT2025/01",
+      tasks: ["TEST", "DEPLOY"],
+      members: [[taha.id, "TC"], [sk.id, "SA"]],
     },
     {
       name: "SUMM8 Support",
@@ -180,9 +296,9 @@ async function main() {
       version: "8.0",
       module: "ALL",
       cloudOnPrem: "ON-PREM",
-      tasks: [
-        { taskId: "SUP", taskName: "SUMM8-Support-Functional-Internal", poRef: "STC/SOW/10FEB2026/04" },
-      ],
+      contract: "STC/SOW/10FEB2026/04",
+      tasks: ["SUP", "DOC"],
+      members: [[taha.id, "TC"], [kv.id, "BC"]],
     },
     {
       name: "Configure Application",
@@ -192,7 +308,9 @@ async function main() {
       version: "2.0",
       module: "CORE",
       cloudOnPrem: "CLOUD",
-      tasks: [{ taskId: "SOW", taskName: "Configure Application", poRef: "ESN/SOW/20DEC2023/04" }],
+      contract: "ESN/SOW/20DEC2023/04",
+      tasks: ["CONFIG", "TEST"],
+      members: [[kv.id, "TC"], [sk.id, "BC"]],
     },
     {
       name: "Internal",
@@ -201,41 +319,68 @@ async function main() {
       product: "COR",
       version: "NA",
       module: "ALL",
-      tasks: [
-        { taskId: "Internal", taskName: "Internal", poRef: null },
-        { taskId: "Yoga", taskName: "Yoga", poRef: null },
-      ],
+      contract: "INT/2026/INTERNAL",
+      tasks: ["INTERNAL", "YOGA"],
+      members: [[taha.id, "TC"], [kv.id, "TC"], [sk.id, "TC"], [manager.id, "TC"]],
     },
   ];
+
+  const scopeFor = async (a: (typeof activitySpecs)[number]) => {
+    const lines = await prisma.contractTask.findMany({
+      where: { contractId: contractIds[a.contract] },
+      include: { taskMaster: true },
+    });
+    return {
+      contractId: contractIds[a.contract],
+      contractTaskIds: lines.filter((l) => a.tasks.includes(l.taskMaster.code)).map((l) => l.id),
+      members: a.members.map(([userId, role]) => ({ userId, resourceTypeId: masters.RESOURCE_TYPE[role] })),
+    };
+  };
 
   const activityCount = await prisma.activity.count();
   if (activityCount === 0) {
     for (const a of activitySpecs) {
-      await prisma.$transaction(async (tx) => {
-        const activity = await createActivity(
-          {
-            name: a.name,
-            clientId: masters.CLIENT[a.client],
-            typeId: masters.TYPE[a.type],
-            productId: masters.PRODUCT[a.product],
-            versionId: masters.VERSION[a.version],
-            moduleId: masters.MODULE[a.module],
-            cloudOnPremId: a.cloudOnPrem ? masters.CLOUD_ON_PREM[a.cloudOnPrem] : null,
-          },
-          tx
-        );
-        await tx.task.createMany({
-          data: a.tasks.map((t) => ({
-            taskId: t.taskId,
-            taskName: t.taskName,
-            poRef: t.poRef,
-            activityId: activity.id,
-          })),
-        });
-      });
+      const scope = await scopeFor(a);
+      await prisma.$transaction(
+        async (tx) => {
+          const activity = await createActivity(
+            {
+              name: a.name,
+              clientId: masters.CLIENT[a.client],
+              typeId: masters.TYPE[a.type],
+              productId: masters.PRODUCT[a.product],
+              versionId: masters.VERSION[a.version],
+              moduleId: masters.MODULE[a.module],
+              cloudOnPremId: a.cloudOnPrem ? masters.CLOUD_ON_PREM[a.cloudOnPrem] : null,
+            },
+            tx
+          );
+          await applyActivityScope(tx, activity.id, scope);
+        },
+        { timeout: 20_000 }
+      );
     }
   } else {
-    console.log(`  Skipping activity seed (already ${activityCount} activities present).`);
+    // Existing database: attach seeded contracts to matching legacy Activities
+    // (their old task ids are kept), then give any other legacy Activity its own.
+    for (const a of activitySpecs) {
+      const legacy = await prisma.activity.findFirst({
+        where: { name: a.name, clientId: masters.CLIENT[a.client], contractId: null },
+      });
+      if (!legacy) continue;
+      const scope = await scopeFor(a);
+      await prisma.$transaction(
+        (tx) =>
+          attachLegacyActivity(tx, legacy.id, scope.contractId, {
+            members: scope.members,
+            defaultRoleId: scope.members[0].resourceTypeId,
+            alsoLineCodes: a.tasks,
+          }),
+        { timeout: 20_000 }
+      );
+      console.log(`  Attached ${legacy.activityId} to ${a.contract}`);
+    }
+    await backfillLegacyActivities({ userId: superAdmin.id, log: console.log });
   }
 
   console.log("Seed complete:");

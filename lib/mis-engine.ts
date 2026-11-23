@@ -25,9 +25,11 @@ export type MISRow = {
   thu: number;
   fri: number;
   dayCount: number;
-  // For grouping
+  // For grouping (not exported)
   userId: number;
   clientId: number;
+  contractId: number | null;
+  resourceTypeId: number | null;
 };
 
 export type MISData = {
@@ -81,7 +83,7 @@ export async function generateMIS(params: {
       include: {
         user: true,
         client: true,
-        activity: true,
+        activity: { include: { contract: { select: { id: true, code: true } } } },
         task: true,
       },
       orderBy: [{ date: "asc" }, { userId: "asc" }],
@@ -102,7 +104,10 @@ export async function generateMIS(params: {
     const [users, clients, activities, tasks] = await Promise.all([
       prisma.user.findMany({ where: { id: { in: userIds } } }),
       prisma.master.findMany({ where: { id: { in: clientIds } } }),
-      prisma.activity.findMany({ where: { id: { in: activityIds } } }),
+      prisma.activity.findMany({
+        where: { id: { in: activityIds } },
+        include: { contract: { select: { id: true, code: true } } },
+      }),
       prisma.task.findMany({ where: { id: { in: taskIds } } }),
     ]);
     const uMap = new Map(users.map((u) => [u.id, u]));
@@ -132,7 +137,7 @@ export async function generateMIS(params: {
     type: r.type,
     beelineTask: r.task?.taskName ?? "",
     taskId: r.task?.taskId ?? "",
-    poRef: r.task?.poRef ?? null,
+    poRef: r.activity?.contract?.code ?? r.task?.poRef ?? null,
     minutes: r.minutes,
     sat: Number(r.sat),
     sun: Number(r.sun),
@@ -144,6 +149,8 @@ export async function generateMIS(params: {
     dayCount: dayCount(new Date(r.date)),
     userId: r.userId,
     clientId: r.clientId,
+    contractId: r.activity?.contract?.id ?? null,
+    resourceTypeId: r.resourceTypeId ?? null,
   }));
 
   // Aggregations
