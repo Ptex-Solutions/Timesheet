@@ -64,6 +64,14 @@ export const MODULES = [
     actions: ["view", "edit", "delete"],
   },
   {
+    // Contracts / SOWs: commercial rates, scope and budgets. `delete` also
+    // covers closing and re-opening a contract (lifecycle), mirroring how
+    // masters.delete soft-deletes.
+    key: "contracts",
+    label: "Contracts (SOW)",
+    actions: ["view", "edit", "delete"],
+  },
+  {
     // Activities and their Tasks.
     key: "activities",
     label: "Activities",
@@ -122,7 +130,11 @@ export function roleDefaults(role: Role): Set<Permission> {
     case "EMPLOYEE":
       return new Set();
     case "ADMIN":
-      return new Set(ALL_PERMISSIONS.filter((p) => !p.startsWith("access.")));
+      // Commercial figures (contracts.*) are Manager-level by default; grant
+      // per Admin through the Access Panel.
+      return new Set(
+        ALL_PERMISSIONS.filter((p) => !p.startsWith("access.") && !p.startsWith("contracts."))
+      );
     case "MANAGER":
     case "SUPER_ADMIN":
       return new Set(ALL_PERMISSIONS);

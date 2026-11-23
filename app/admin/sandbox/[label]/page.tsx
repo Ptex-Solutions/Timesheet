@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentAccess } from "@/lib/authz";
 import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { Topbar } from "@/components/shared/topbar";
+import { Topbar } from "@/components/shared/app-topbar";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { SandboxEditor } from "./editor";

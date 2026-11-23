@@ -4,7 +4,18 @@ import { prisma } from "@/lib/prisma";
 import { audit, badRequest, parseId, readJsonBody, requirePermission } from "@/lib/api-utils";
 import { getCurrentAccess } from "@/lib/authz";
 import { activitySchema } from "@/lib/validations";
-import { activityListInclude, createActivity } from "@/lib/activity-service";
+import { activityAdminInclude, activityListInclude, createActivity } from "@/lib/activity-service";
+import { ScopeError, applyActivityScope, type ScopeResult } from "@/lib/activity-scope";
+
+// createActivity throws plain Errors for missing / inactive / wrong-type
+// masters and applyActivityScope throws ScopeError; both are client errors.
+// Anything else (Prisma errors etc.) is a genuine 500.
+function clientError(e: unknown): NextResponse | null {
+  if (e instanceof ScopeError || (e instanceof Error && e.constructor === Error)) {
+    return NextResponse.json({ error: e.message }, { status: 400 });
+  }
+  return null;
+}
 
 const IMMUTABLE_FIELDS = ["clientId", "typeId", "productId", "versionId", "moduleId"] as const;
 const IMMUTABLE_MESSAGE =
@@ -32,11 +43,18 @@ export async function GET(req: NextRequest) {
   const data = await prisma.activity.findMany({
     where: {
       ...(clientId ? { clientId } : {}),
-      ...(isAdminView ? {} : { isActive: true }),
+      // Timesheet-entry view: only active Activities the caller is a member
+      // of (pre-contract Activities without a contract stay open to all).
+      ...(isAdminView
+        ? {}
+        : {
+            isActive: true,
+            OR: [{ contractId: null }, { members: { some: { userId: access.user.id, isActive: true } } }],
+          }),
     },
     orderBy: { activityId: "asc" },
     include: isAdminView
-      ? activityListInclude
+      ? activityAdminInclude
       : { ...activityListInclude, tasks: { ...activityListInclude.tasks, where: { isActive: true } } },
   });
   return NextResponse.json({ data });
@@ -54,15 +72,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
   }
 
+  const { contractId, contractTaskIds, taskActive, members, ...activityInput } = parsed.data;
+  if (!contractId) return badRequest("Select the Contract / SOW this Activity executes");
+
   let created;
+  let scope: ScopeResult;
   try {
-    created = await createActivity(parsed.data);
+    // Activity + its task subset + members commit together or not at all.
+    ({ created, scope } = await prisma.$transaction(
+      async (tx) => {
+        const created = await createActivity(activityInput, tx);
+        const scope = await applyActivityScope(tx, created.id, {
+          contractId,
+          contractTaskIds: contractTaskIds ?? [],
+          taskActive: taskActive && Object.fromEntries(Object.entries(taskActive).map(([k, v]) => [Number(k), v])),
+          members: members ?? [],
+        });
+        return { created, scope };
+      },
+      { timeout: 20_000 }
+    ));
   } catch (e) {
-    // createActivity throws plain Errors for missing / inactive / wrong-type
-    // masters; anything else (Prisma errors etc.) is a genuine 500.
-    if (e instanceof Error && e.constructor === Error) {
-      return NextResponse.json({ error: e.message }, { status: 400 });
-    }
+    const res = clientError(e);
+    if (res) return res;
     throw e;
   }
 
@@ -71,7 +103,7 @@ export async function POST(req: NextRequest) {
     action: "create",
     entity: "Activity",
     entityId: created.id,
-    meta: { activityId: created.activityId },
+    meta: { activityId: created.activityId, contractId, tasks: scope.added, members: scope.members },
   });
   return NextResponse.json({ data: created }, { status: 201 });
 }
@@ -101,7 +133,7 @@ export async function PUT(req: NextRequest) {
     if (v !== undefined && v !== existing[f]) return badRequest(IMMUTABLE_MESSAGE);
   }
 
-  const { name, cloudOnPremId, isActive } = parsed.data;
+  const { name, cloudOnPremId, isActive, contractId, contractTaskIds, taskActive, members } = parsed.data;
 
   if (cloudOnPremId != null && cloudOnPremId !== existing.cloudOnPremId) {
     const m = await prisma.master.findUnique({ where: { id: cloudOnPremId } });
@@ -110,16 +142,54 @@ export async function PUT(req: NextRequest) {
     }
   }
 
-  const data = await prisma.activity.update({
-    where: { id },
-    data: {
-      ...(name !== undefined ? { name } : {}),
-      ...(cloudOnPremId !== undefined ? { cloudOnPremId: cloudOnPremId ?? null } : {}),
-      ...(isActive !== undefined ? { isActive } : {}),
-    },
+  let data;
+  let scope: ScopeResult | null = null;
+  try {
+    ({ data, scope } = await prisma.$transaction(
+      async (tx) => {
+        const data = await tx.activity.update({
+          where: { id },
+          data: {
+            ...(name !== undefined ? { name } : {}),
+            ...(cloudOnPremId !== undefined ? { cloudOnPremId: cloudOnPremId ?? null } : {}),
+            ...(isActive !== undefined ? { isActive } : {}),
+          },
+        });
+        // Scope is only touched when the caller sends a contract; omitted
+        // task ids / members keep the current ones.
+        let scope: ScopeResult | null = null;
+        if (contractId !== undefined) {
+          const current = await tx.activity.findUniqueOrThrow({
+            where: { id },
+            include: { tasks: true, members: true },
+          });
+          scope = await applyActivityScope(tx, id, {
+            contractId,
+            contractTaskIds:
+              contractTaskIds ?? current.tasks.filter((t) => t.contractTaskId !== null).map((t) => t.contractTaskId!),
+            taskActive: taskActive && Object.fromEntries(Object.entries(taskActive).map(([k, v]) => [Number(k), v])),
+            members:
+              members ??
+              current.members.map((m) => ({ userId: m.userId, resourceTypeId: m.resourceTypeId, isActive: m.isActive })),
+          });
+        }
+        return { data, scope };
+      },
+      { timeout: 20_000 }
+    ));
+  } catch (e) {
+    const res = clientError(e);
+    if (res) return res;
+    throw e;
+  }
+  await audit({
+    userId: user.id,
+    action: "update",
+    entity: "Activity",
+    entityId: id,
+    ...(scope ? { meta: { contractId, ...scope } } : {}),
   });
-  await audit({ userId: user.id, action: "update", entity: "Activity", entityId: id });
-  return NextResponse.json({ data });
+  return NextResponse.json({ data, scope });
 }
 
 export async function DELETE(req: NextRequest) {

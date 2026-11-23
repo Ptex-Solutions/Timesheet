@@ -69,8 +69,9 @@ export async function POST(req: NextRequest) {
 
   const v = parsed.data;
 
-  // Task must belong to the Activity; clientId and type are derived from it.
-  const resolved = await resolveTimesheetRefs(v.activityId, v.taskId);
+  // Task must belong to the Activity (and to its contract), the author must
+  // be a member; clientId, type and the billing role are derived server-side.
+  const resolved = await resolveTimesheetRefs(v.activityId, v.taskId, {}, { memberUserId: user.id });
   if (!resolved.ok) return badRequest(resolved.error);
   const refs = resolved.refs;
 
@@ -108,6 +109,7 @@ export async function POST(req: NextRequest) {
       hours: v.hours,
       minutes,
       type: refs.type,
+      resourceTypeId: refs.resourceTypeId,
       sat: dayHours.sat,
       sun: dayHours.sun,
       mon: dayHours.mon,

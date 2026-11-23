@@ -37,6 +37,7 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/api/mis") ||
     pathname.startsWith("/api/users") ||
     pathname.startsWith("/api/tasks") ||
+    pathname.startsWith("/api/contracts") ||
     pathname.startsWith("/api/access");
 
   if (staffOnly && !isStaffRole(role)) {
@@ -70,6 +71,7 @@ export const config = {
     "/api/masters/:path*",
     "/api/activities/:path*",
     "/api/tasks/:path*",
+    "/api/contracts/:path*",
     "/api/access/:path*",
   ],
 };

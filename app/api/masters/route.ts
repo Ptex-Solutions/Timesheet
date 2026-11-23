@@ -9,6 +9,33 @@ function isValidMasterType(v: unknown): v is MasterType {
   return typeof v === "string" && (MASTER_TYPES as readonly string[]).includes(v);
 }
 
+// How many rows point at this master. Referenced masters are soft-deleted
+// and keep their code (it is baked into Activity IDs, contracts and history).
+async function masterReferenceCount(id: number): Promise<number> {
+  const counts = await Promise.all([
+    prisma.activity.count({
+      where: {
+        OR: [
+          { clientId: id },
+          { typeId: id },
+          { productId: id },
+          { versionId: id },
+          { moduleId: id },
+          { cloudOnPremId: id },
+        ],
+      },
+    }),
+    prisma.timesheet.count({ where: { OR: [{ clientId: id }, { resourceTypeId: id }] } }),
+    prisma.sandboxEntry.count({ where: { clientId: id } }),
+    prisma.contract.count({ where: { OR: [{ clientId: id }, { currencyId: id }] } }),
+    prisma.contractRate.count({ where: { resourceTypeId: id } }),
+    prisma.contractTask.count({ where: { taskMasterId: id } }),
+    prisma.contractTaskBudget.count({ where: { resourceTypeId: id } }),
+    prisma.activityMember.count({ where: { resourceTypeId: id } }),
+  ]);
+  return counts.reduce((a, b) => a + b, 0);
+}
+
 function conflictMessage(type: MasterType, code: string) {
   return `A ${type} master with code "${code}" already exists`;
 }
@@ -95,24 +122,7 @@ export async function PUT(req: NextRequest) {
   // strings via the activity relation) once this master is referenced, so it
   // can't change after that — mirror the reference check DELETE already does.
   if (editable.code !== undefined && editable.code !== existing.code) {
-    const [activityRefCount, timesheetCount, sandboxCount] = await Promise.all([
-      prisma.activity.count({
-        where: {
-          OR: [
-            { clientId: id },
-            { typeId: id },
-            { productId: id },
-            { versionId: id },
-            { moduleId: id },
-            { cloudOnPremId: id },
-          ],
-        },
-      }),
-      prisma.timesheet.count({ where: { clientId: id } }),
-      prisma.sandboxEntry.count({ where: { clientId: id } }),
-    ]);
-
-    if (activityRefCount > 0 || timesheetCount > 0 || sandboxCount > 0) {
+    if ((await masterReferenceCount(id)) > 0) {
       return NextResponse.json(
         { error: "Cannot change the code of a master that is already in use — create a new one instead." },
         { status: 400 }
@@ -146,24 +156,7 @@ export async function DELETE(req: NextRequest) {
   const existing = await prisma.master.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const [activityRefCount, timesheetCount, sandboxCount] = await Promise.all([
-    prisma.activity.count({
-      where: {
-        OR: [
-          { clientId: id },
-          { typeId: id },
-          { productId: id },
-          { versionId: id },
-          { moduleId: id },
-          { cloudOnPremId: id },
-        ],
-      },
-    }),
-    prisma.timesheet.count({ where: { clientId: id } }),
-    prisma.sandboxEntry.count({ where: { clientId: id } }),
-  ]);
-
-  const inUse = activityRefCount > 0 || timesheetCount > 0 || sandboxCount > 0;
+  const inUse = (await masterReferenceCount(id)) > 0;
 
   if (inUse) {
     const data = await prisma.master.update({ where: { id }, data: { isActive: false } });

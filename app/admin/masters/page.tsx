@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentAccess } from "@/lib/authz";
-import { Topbar } from "@/components/shared/topbar";
+import { Topbar } from "@/components/shared/app-topbar";
 import { PageHeader } from "@/components/shared/page-header";
 import { MastersPanel } from "./panel";
 
