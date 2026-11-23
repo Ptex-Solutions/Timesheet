@@ -49,11 +49,10 @@ Press **Ctrl+C** to stop the app. The database container keeps running in the ba
 
 | Role | Email | Password |
 |---|---|---|
-| Super Admin | superadmin@ptexsolutions.com | Admin@123 |
-| Manager | admin@ptexsolutions.com | Admin@123 |
-| Admin | himanshu@ptexsolutions.com | Manager@123 |
+| Super Admin | superadmin@ptexsolutions.com | SUAdmin@123 |
+| Manager | sgawade@ptexsolutions.com | Admin@123 |
+| Admin | hshah@ptexsolutions.com | HS@123 |
 | Employee | tqureshi@ptexsolutions.com | Taha@123 |
-| Employee | kv@ptex.com / sk@ptex.com | Taha@123 |
 
 Roles from lowest to highest: **Employee** logs and submits their own timesheets. **Admin** approves timesheets and runs the admin portal. **Manager** can do everything an Admin can, plus the Access Panel and managing Admins. **Super Admin** has full access.
 

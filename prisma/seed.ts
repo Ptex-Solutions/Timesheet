@@ -14,20 +14,32 @@ async function main() {
   console.log("Seeding Ptex database...");
 
   // ---- Users ----
-  const managerPwd = await bcrypt.hash("Manager@123", ROUNDS);
+  const managerPwd = await bcrypt.hash("HS@123", ROUNDS);
   const employeePwd = await bcrypt.hash("Taha@123", ROUNDS);
   const adminPwd = await bcrypt.hash("Admin@123", ROUNDS);
+  const superAdminPwd = await bcrypt.hash("SUAdmin@123", ROUNDS);
 
-  const manager = await prisma.user.upsert({
-    where: { email: "himanshu@ptexsolutions.com" },
+  const superAdmin = await prisma.user.upsert({
+    where: { email: "superadmin@ptexsolutions.com" },
     update: {},
     create: {
-      name: "Operations Manager",
-      email: "himanshu@ptexsolutions.com",
+      name: "Super Admin",
+      email: "superadmin@ptexsolutions.com",
+      password: superAdminPwd,
+      role: Role.SUPER_ADMIN,
+      employeeCode: "SA",
+    },
+  });
+
+  const manager = await prisma.user.upsert({
+    where: { email: "hshah@ptexsolutions.com" },
+    update: {},
+    create: {
+      name: "Himanshu Shah",
+      email: "hshah@ptexsolutions.com",
       password: managerPwd,
-      // Admin = day-to-day approver (below Manager).
       role: Role.ADMIN,
-      employeeCode: "MGR",
+      employeeCode: "HS123",
     },
   });
 
@@ -43,50 +55,15 @@ async function main() {
     },
   });
 
-  const kv = await prisma.user.upsert({
-    where: { email: "kv@ptex.com" },
-    update: {},
-    create: {
-      name: "Karunakar Verma",
-      email: "kv@ptex.com",
-      password: employeePwd,
-      role: Role.EMPLOYEE,
-      employeeCode: "KV",
-    },
-  });
-
-  const sk = await prisma.user.upsert({
-    where: { email: "sk@ptex.com" },
-    update: {},
-    create: {
-      name: "Shriyansh Kumar",
-      email: "sk@ptex.com",
-      password: employeePwd,
-      role: Role.EMPLOYEE,
-      employeeCode: "SK",
-    },
-  });
-
-  const superAdmin = await prisma.user.upsert({
-    where: { email: "superadmin@ptexsolutions.com" },
-    update: {},
-    create: {
-      name: "Super Admin",
-      email: "superadmin@ptexsolutions.com",
-      password: adminPwd,
-      role: Role.SUPER_ADMIN,
-      employeeCode: "SA",
-    },
-  });
+  
 
   await prisma.user.upsert({
-    where: { email: "admin@ptexsolutions.com" },
+    where: { email: "sgawade@ptexsolutions.com" },
     update: {},
     create: {
-      name: "Administrator",
-      email: "admin@ptexsolutions.com",
+      name: "Siddhi Gawade",
+      email: "sgawade@ptexsolutions.com",
       password: adminPwd,
-      // Manager sits above Admin (Access Panel, manages Admins).
       role: Role.MANAGER,
       employeeCode: "ADM",
     },
@@ -273,7 +250,7 @@ async function main() {
       cloudOnPrem: "CLOUD",
       contract: "STC/SOW/08OCT2025/01",
       tasks: ["DEV", "R&D"],
-      members: [[taha.id, "TC"], [kv.id, "TC"], [sk.id, "LC"]],
+      members: [[taha.id, "TC"]],
     },
     {
       // Same SOW, different Activity: testing and deployment are run separately.
@@ -286,7 +263,7 @@ async function main() {
       cloudOnPrem: "CLOUD",
       contract: "STC/SOW/08OCT2025/01",
       tasks: ["TEST", "DEPLOY"],
-      members: [[taha.id, "TC"], [sk.id, "SA"]],
+      members: [[taha.id, "TC"]],
     },
     {
       name: "SUMM8 Support",
@@ -298,7 +275,7 @@ async function main() {
       cloudOnPrem: "ON-PREM",
       contract: "STC/SOW/10FEB2026/04",
       tasks: ["SUP", "DOC"],
-      members: [[taha.id, "TC"], [kv.id, "BC"]],
+      members: [[taha.id, "TC"]],
     },
     {
       name: "Configure Application",
@@ -310,7 +287,7 @@ async function main() {
       cloudOnPrem: "CLOUD",
       contract: "ESN/SOW/20DEC2023/04",
       tasks: ["CONFIG", "TEST"],
-      members: [[kv.id, "TC"], [sk.id, "BC"]],
+      members: [[taha.id, "TC"]],
     },
     {
       name: "Internal",
@@ -321,7 +298,7 @@ async function main() {
       module: "ALL",
       contract: "INT/2026/INTERNAL",
       tasks: ["INTERNAL", "YOGA"],
-      members: [[taha.id, "TC"], [kv.id, "TC"], [sk.id, "TC"], [manager.id, "TC"]],
+      members: [[taha.id, "TC"], [manager.id, "TC"]],
     },
   ];
 
@@ -384,11 +361,10 @@ async function main() {
   }
 
   console.log("Seed complete:");
-  console.log("  Super Admin: superadmin@ptexsolutions.com / Admin@123");
-  console.log("  Manager:     admin@ptexsolutions.com      / Admin@123");
-  console.log(`  Admin:       himanshu@ptexsolutions.com   / Manager@123 (id ${manager.id})`);
+  console.log("  Super Admin: superadmin@ptexsolutions.com / SUAdmin@123");
+  console.log("  Manager:     sgawade@ptexsolutions.com      / Admin@123");
+  console.log(`  Admin:       hshah@ptexsolutions.com   / HS@123 (id ${manager.id})`);
   console.log(`  Employee:    tqureshi@ptexsolutions.com   / Taha@123    (id ${taha.id})`);
-  console.log("  Employees:   kv@ptex.com, sk@ptex.com     / Taha@123");
 }
 
 main()
