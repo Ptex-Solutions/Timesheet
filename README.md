@@ -53,9 +53,9 @@ Open <http://localhost:3000> and sign in with one of the demo accounts:
 
 | Role        | Email                        | Password    |
 |-------------|------------------------------|-------------|
-| Super Admin | superadmin@ptexsolutions.com | Admin@123   |
-| Manager     | admin@ptexsolutions.com      | Admin@123   |
-| Admin       | himanshu@ptexsolutions.com   | Manager@123 |
+| Super Admin | superadmin@ptexsolutions.com | SUAdmin@123   |
+| Manager     | sgawade@ptexsolutions.com      | Admin@123   |
+| Admin       | hshah@ptexsolutions.com   | HS@123 |
 | Employee    | tqureshi@ptexsolutions.com   | Taha@123    |
 
 > **Security:** the seeded Super Admin and Manager accounts use a publicly known password. On any non-development database, change their passwords immediately (or promote a real user to Super Admin and deactivate the seeded accounts).

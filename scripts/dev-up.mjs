@@ -129,7 +129,10 @@ async function ensureDatabase() {
   if (!mode) {
     c.fail(dockerProblem() + "\n  • Or point DATABASE_URL in .env at a MySQL 8 server you already have.");
   }
-  if (mode === "wsl") c.info("Using Docker inside WSL");
+  if (mode === "wsl") {
+    c.info("Using Docker inside WSL");
+    holdWsl();
+  }
 
   // Publish the container on the same port DATABASE_URL expects. WSL2
   // forwards localhost ports to Windows, so the app still uses localhost.
@@ -199,14 +202,24 @@ async function seedIfEmpty() {
   }
   if (!run("npx", ["tsx", "prisma/seed.ts"])) c.fail("Seeding failed — see the output above");
   c.ok("Seeded demo users, masters and activities");
-  c.info("Log in with superadmin@ptexsolutions.com / Admin@123 (more accounts in SETUP.md)");
+  c.info("Log in with superadmin@ptexsolutions.com / SUAdmin@123 (more accounts in SETUP.md)");
 }
 
 // ---------------------------------------------------------------------------
 // 5. Dev server
 // ---------------------------------------------------------------------------
+// WSL stops its VM (and the MySQL container with it) a few seconds after the
+// last `wsl` process exits. Hold one open for as long as this script runs.
+let keepWsl = null;
+function holdWsl() {
+  if (keepWsl) return;
+  keepWsl = spawn("wsl", ["sleep", "infinity"], { stdio: "ignore" });
+  process.on("exit", () => keepWsl.kill());
+}
+
 function startDev() {
   c.step("Starting the dev server (Ctrl+C to stop)");
+  if (dockerMode() === "wsl") holdWsl();
   const child = IS_WIN
     ? spawn("npx next dev --turbo", { cwd: ROOT, stdio: "inherit", shell: true })
     : spawn("npx", ["next", "dev", "--turbo"], { cwd: ROOT, stdio: "inherit" });
