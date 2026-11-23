@@ -7,10 +7,17 @@ Get the app running on your machine with one command. The database runs in Docke
 | Tool | Version | Get it |
 |---|---|---|
 | **Node.js** | 18.17 or newer (20 LTS recommended) | https://nodejs.org |
-| **Docker Desktop** | any recent version | https://www.docker.com/products/docker-desktop/ |
+| **Docker** | Docker Desktop, or Docker Engine inside WSL on Windows | https://www.docker.com/products/docker-desktop/ |
 | **Git** | any | https://git-scm.com |
 
-Start **Docker Desktop** and wait until it says it's running before you continue.
+Start Docker and wait until it's running before you continue.
+
+**Docker inside WSL (Windows without Docker Desktop).** Run `npm run dev:up` from Windows as usual. If Windows has no `docker` command, the scripts run `wsl docker ...` for you, and WSL forwards the database port to Windows `localhost`. Do this once inside WSL so Docker works without `sudo`:
+
+```bash
+sudo usermod -aG docker $USER   # then, from Windows: wsl --shutdown
+sudo service docker start       # if the Docker daemon isn't running
+```
 
 ## 2. Get the code and install packages
 
@@ -42,11 +49,10 @@ Press **Ctrl+C** to stop the app. The database container keeps running in the ba
 
 | Role | Email | Password |
 |---|---|---|
-| Super Admin | superadmin@ptexsolutions.com | Admin@123 |
-| Manager | admin@ptexsolutions.com | Admin@123 |
-| Admin | himanshu@ptexsolutions.com | Manager@123 |
+| Super Admin | superadmin@ptexsolutions.com | SUAdmin@123 |
+| Manager | sgawade@ptexsolutions.com | Admin@123 |
+| Admin | hshah@ptexsolutions.com | HS@123 |
 | Employee | tqureshi@ptexsolutions.com | Taha@123 |
-| Employee | kv@ptex.com / sk@ptex.com | Taha@123 |
 
 Roles from lowest to highest: **Employee** logs and submits their own timesheets. **Admin** approves timesheets and runs the admin portal. **Manager** can do everything an Admin can, plus the Access Panel and managing Admins. **Super Admin** has full access.
 
@@ -81,6 +87,12 @@ DATABASE_URL="mysql://USER:PASSWORD@HOST:PORT/ptex_db"
 
 **"Docker isn't running (or isn't installed)"**
 Start Docker Desktop, wait until it's ready, and run `npm run dev:up` again.
+
+**"Docker in WSL refused access (permission denied on /var/run/docker.sock)"**
+Your WSL user isn't in the `docker` group. Inside WSL run `sudo usermod -aG docker $USER`, then from Windows run `wsl --shutdown`, and try again.
+
+**"Docker in WSL isn't running"**
+Inside WSL run `sudo service docker start` (or `sudo systemctl start docker` if systemd is enabled).
 
 **Port 3307 is already in use**
 Another program is using the Docker database's port. Pick a free port in `.env`, for example `...@localhost:3308/ptex_db`, and run `npm run dev:up`. The container starts on whatever port your `DATABASE_URL` uses.

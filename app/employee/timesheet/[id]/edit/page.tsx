@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Topbar } from "@/components/shared/topbar";
+import { Topbar } from "@/components/shared/app-topbar";
 import { PageHeader } from "@/components/shared/page-header";
 import { TimesheetForm } from "@/components/employee/timesheet-form";
 

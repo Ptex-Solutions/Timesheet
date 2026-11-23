@@ -22,6 +22,8 @@ type Activity = {
   name: string;
   clientId: number;
   type: { id: number; code: string; description: string | null };
+  // The SOW this Activity executes; its code is the PO reference.
+  contract: { id: number; code: string } | null;
   tasks: Array<{ id: number; taskId: string; taskName: string; poRef: string | null }>;
 };
 
@@ -291,7 +293,11 @@ export function TimesheetForm({
             <Row label="Week Label" value={dateInfo.weekLabel} />
             <Row label="Day" value={`${dateInfo.dayName} (${dateInfo.day})`} />
             <Row label="Minutes" value={`${Math.round(hours * 60)} mins`} />
-            {selectedTask?.poRef && <Row label="PO Ref" value={selectedTask.poRef} mono />}
+            {selectedActivity?.contract ? (
+              <Row label="SOW / PO Ref" value={selectedActivity.contract.code} mono />
+            ) : (
+              selectedTask?.poRef && <Row label="PO Ref" value={selectedTask.poRef} mono />
+            )}
           </CardContent>
         </Card>
 

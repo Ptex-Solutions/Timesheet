@@ -45,6 +45,9 @@ model User {
   timesheetMentions        TimesheetCommentMention[] @relation("MentionedUser")
   timesheetQueriesOpened   TimesheetQuery[]          @relation("QueryOpenedBy")
   timesheetQueriesResolved TimesheetQuery[]          @relation("QueryResolvedBy")
+
+  contractsCreated    Contract[]       @relation("ContractCreator")
+  activityMemberships ActivityMember[]
 }
 
 enum MasterType {
@@ -54,6 +57,9 @@ enum MasterType {
   VERSION
   MODULE
   CLOUD_ON_PREM
+  CURRENCY // contract currency (GBP, INR, USD…)
+  RESOURCE_TYPE // commercial billing role (TC, LC…) — unrelated to the RBAC Role enum
+  TASK // generic task catalogue that SOW scope lines pick from
 }
 
 model Master {
@@ -74,8 +80,92 @@ model Master {
   timesheets          Timesheet[]    @relation("TimesheetClient")
   sandboxRows         SandboxEntry[] @relation("SandboxClient")
 
+  contractsAsClient    Contract[]           @relation("ContractClient")
+  contractsAsCurrency  Contract[]           @relation("ContractCurrency")
+  contractRates        ContractRate[]       @relation("ContractRateResource")
+  contractTasks        ContractTask[]       @relation("ContractTaskMaster")
+  contractTaskBudgets  ContractTaskBudget[] @relation("ContractBudgetResource")
+  activityMembers      ActivityMember[]     @relation("ActivityMemberResource")
+  timesheetsAsResource Timesheet[]          @relation("TimesheetResourceType")
+
   @@unique([type, code])
   @@index([type])
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+// Contract / SOW: the commercial source of truth for rates, scope and budget.
+// Totals are never stored — lib/contract-calc.ts derives them from rates ×
+// budget hours on read. The code doubles as the PO reference in MIS output.
+model Contract {
+  id          Int            @id @default(autoincrement())
+  code        String         @unique
+  description String?        @db.Text
+  clientId    Int
+  client      Master         @relation("ContractClient", fields: [clientId], references: [id])
+  currencyId  Int
+  currency    Master         @relation("ContractCurrency", fields: [currencyId], references: [id])
+  status      ContractStatus @default(DRAFT)
+  activatedAt DateTime?
+  closedAt    DateTime?
+  createdById Int
+  createdBy   User           @relation("ContractCreator", fields: [createdById], references: [id])
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  rates      ContractRate[]
+  tasks      ContractTask[]
+  activities Activity[]
+
+  @@index([clientId])
+  @@index([status])
+}
+
+// Agreed hourly rate per commercial role (RESOURCE_TYPE master), in the
+// contract's currency.
+model ContractRate {
+  id             Int      @id @default(autoincrement())
+  contractId     Int
+  contract       Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  resourceTypeId Int
+  resourceType   Master   @relation("ContractRateResource", fields: [resourceTypeId], references: [id])
+  ratePerHour    Decimal  @db.Decimal(12, 2)
+
+  @@unique([contractId, resourceTypeId])
+}
+
+// A task (TASK master) in the SOW's scope. Activities pick their tasks from
+// these rows; one SOW task may be delivered through several Activities and
+// they all consume the same budget.
+model ContractTask {
+  id           Int      @id @default(autoincrement())
+  contractId   Int
+  contract     Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  taskMasterId Int
+  taskMaster   Master   @relation("ContractTaskMaster", fields: [taskMasterId], references: [id])
+  sortOrder    Int      @default(0)
+
+  budgets       ContractTaskBudget[]
+  activityTasks Task[]
+
+  @@unique([contractId, taskMasterId])
+}
+
+// Budgeted hours for one SOW task and one role. Only roles present in the
+// contract's rate table are allowed (enforced in lib/contract-service.ts).
+model ContractTaskBudget {
+  contractTaskId Int
+  contractTask   ContractTask @relation(fields: [contractTaskId], references: [id], onDelete: Cascade)
+  resourceTypeId Int
+  resourceType   Master       @relation("ContractBudgetResource", fields: [resourceTypeId], references: [id])
+  hours          Decimal      @db.Decimal(10, 2)
+
+  @@id([contractTaskId, resourceTypeId])
+  @@index([resourceTypeId])
 }
 
 model ActivitySequence {
@@ -102,31 +192,62 @@ model Activity {
   cloudOnPremId Int?
   cloudOnPrem   Master? @relation("ActivityCloud", fields: [cloudOnPremId], references: [id])
 
+  // Season 2: the SOW this Activity executes. Nullable only for rows created
+  // before contracts existed; the API requires it for new Activities.
+  contractId Int?
+  contract   Contract? @relation(fields: [contractId], references: [id], onDelete: Restrict)
+
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   tasks          Task[]
+  members        ActivityMember[]
   timesheets     Timesheet[]
-  sandboxEntries SandboxEntry[] @relation("SandboxActivity")
+  sandboxEntries SandboxEntry[]   @relation("SandboxActivity")
 
   @@index([clientId])
   @@index([typeId])
+  @@index([contractId])
+}
+
+// Who may log time on an Activity, and at which commercial role (a
+// RESOURCE_TYPE that has a rate on the Activity's contract).
+model ActivityMember {
+  activityId     Int
+  activity       Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  userId         Int
+  user           User     @relation(fields: [userId], references: [id])
+  resourceTypeId Int
+  resourceType   Master   @relation("ActivityMemberResource", fields: [resourceTypeId], references: [id])
+  // Inactive members stay on the Activity (history, billing role) but can't
+  // log new time; unchanged existing entries remain editable.
+  isActive       Boolean  @default(true)
+
+  @@id([activityId, userId])
+  @@index([userId])
+  @@index([resourceTypeId])
 }
 
 model Task {
-  id         Int      @id @default(autoincrement())
-  taskId     String
-  taskName   String
-  poRef      String?
-  activityId Int
-  activity   Activity @relation(fields: [activityId], references: [id])
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
+  id             Int           @id @default(autoincrement())
+  taskId         String
+  taskName       String
+  poRef          String?
+  activityId     Int
+  activity       Activity      @relation(fields: [activityId], references: [id])
+  // The SOW scope line this Activity task delivers (null for pre-contract
+  // tasks). Must belong to the Activity's contract.
+  contractTaskId Int?
+  contractTask   ContractTask? @relation(fields: [contractTaskId], references: [id], onDelete: Restrict)
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
 
   timesheets Timesheet[]
 
+  @@unique([activityId, contractTaskId])
   @@index([activityId])
+  @@index([contractTaskId])
 }
 
 model Timesheet {
@@ -146,6 +267,12 @@ model Timesheet {
   hours       Decimal  @db.Decimal(5, 2)
   minutes     Int
   type        String
+
+  // Billing role (RESOURCE_TYPE) of the author on this Activity, snapshotted
+  // from ActivityMember when the owner saves, so later membership changes
+  // don't rewrite past billing. Null for pre-contract entries.
+  resourceTypeId Int?
+  resourceType   Master? @relation("TimesheetResourceType", fields: [resourceTypeId], references: [id], onDelete: Restrict)
 
   sat Decimal @default(0) @db.Decimal(5, 2)
   sun Decimal @default(0) @db.Decimal(5, 2)

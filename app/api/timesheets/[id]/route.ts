@@ -112,15 +112,20 @@ export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
     // row: the task must belong to the activity, and clientId/type are derived
     // from the activity (a submitted clientId is ignored). Unchanged ids may
     // point at since-deactivated rows; newly chosen ones must be active.
-    const resolved = await resolveTimesheetRefs(v.activityId ?? ts.activityId, v.taskId ?? ts.taskId, {
-      activityId: ts.activityId,
-      taskId: ts.taskId,
-    });
+    // Only the owner reaches this branch, so membership is checked for them.
+    const resolved = await resolveTimesheetRefs(
+      v.activityId ?? ts.activityId,
+      v.taskId ?? ts.taskId,
+      { activityId: ts.activityId, taskId: ts.taskId },
+      { memberUserId: ts.userId }
+    );
     if (!resolved.ok) return badRequest(resolved.error);
     data.clientId = resolved.refs.clientId;
     data.activityId = resolved.refs.activityId;
     data.taskId = resolved.refs.taskId;
     data.type = resolved.refs.type;
+    // Keep the old snapshot if the author has since left the Activity.
+    data.resourceTypeId = resolved.refs.resourceTypeId ?? (data.activityId === ts.activityId ? ts.resourceTypeId : null);
   }
   if (v.description !== undefined) data.description = v.description;
   if (v.hours !== undefined) {

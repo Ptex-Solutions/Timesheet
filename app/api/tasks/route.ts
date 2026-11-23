@@ -30,6 +30,11 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
   const activity = await prisma.activity.findUnique({ where: { id: parsed.data.activityId } });
   if (!activity) return badRequest("Activity not found");
+  // Contract-backed Activities take their tasks from the SOW (Activity edit
+  // dialog -> contractTaskIds); free-text tasks only exist on legacy ones.
+  if (activity.contractId !== null) {
+    return badRequest("This Activity's tasks come from its Contract — pick them in Edit Activity");
+  }
   const created = await prisma.task.create({ data: { ...parsed.data, poRef: parsed.data.poRef ?? null } });
   await audit({ userId: user.id, action: "create", entity: "Task", entityId: created.id });
   return NextResponse.json({ data: created }, { status: 201 });
@@ -48,6 +53,22 @@ export async function PUT(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
   const existing = await prisma.task.findUnique({ where: { id } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (existing.contractTaskId !== null) {
+    // SOW-backed task: its code and parent are fixed by the contract line;
+    // code and name come from the TASK master; only the active flag may change.
+    if (parsed.data.activityId !== undefined && parsed.data.activityId !== existing.activityId) {
+      return badRequest("A contract task cannot move to another Activity");
+    }
+    if (parsed.data.taskId !== undefined && parsed.data.taskId !== existing.taskId) {
+      return badRequest("A contract task's code comes from the SOW and cannot change");
+    }
+    if (parsed.data.taskName !== undefined && parsed.data.taskName !== existing.taskName) {
+      return badRequest("A contract task's name comes from the Tasks master and cannot change");
+    }
+    if (parsed.data.poRef !== undefined && (parsed.data.poRef ?? null) !== existing.poRef) {
+      return badRequest("A contract task's PO reference is the contract code");
+    }
+  }
   if (parsed.data.activityId !== undefined && parsed.data.activityId !== existing.activityId) {
     // A task with logged time must stay under its activity: moving it would
     // leave those rows pointing at a task of a different activity, and a later
@@ -61,6 +82,7 @@ export async function PUT(req: NextRequest) {
     }
     const activity = await prisma.activity.findUnique({ where: { id: parsed.data.activityId } });
     if (!activity) return badRequest("Activity not found");
+    if (activity.contractId !== null) return badRequest("Cannot move a free-text task under a contract-backed Activity");
   }
   const updated = await prisma.task.update({ where: { id }, data: parsed.data });
   await audit({ userId: user.id, action: "update", entity: "Task", entityId: id });

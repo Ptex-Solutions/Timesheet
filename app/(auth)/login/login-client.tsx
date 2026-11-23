@@ -51,13 +51,13 @@ export default function LoginPage() {
   function fill(role: "manager" | "employee" | "super_admin" | "admin") {
     if (role === "manager") {
       setEmail("sgawade@ptexsolutions.com");
-      setPassword("Manager@123");
+      setPassword("Admin@123");
     } else if (role === "super_admin") {
       setEmail("superadmin@ptexsolutions.com");
-      setPassword("Admin@123");
+      setPassword("SUAdmin@123");
     }else if (role === "admin") {
-      setEmail("himanshu@ptexsolutions.com");
-      setPassword("Admin@123");
+      setEmail("hshah@ptexsolutions.com");
+      setPassword("HS@123");
     } else {
       setEmail("tqureshi@ptexsolutions.com");
       setPassword("Taha@123");

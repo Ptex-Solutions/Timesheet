@@ -53,9 +53,9 @@ Open <http://localhost:3000> and sign in with one of the demo accounts:
 
 | Role        | Email                        | Password    |
 |-------------|------------------------------|-------------|
-| Super Admin | superadmin@ptexsolutions.com | Admin@123   |
-| Manager     | admin@ptexsolutions.com      | Admin@123   |
-| Admin       | himanshu@ptexsolutions.com   | Manager@123 |
+| Super Admin | superadmin@ptexsolutions.com | SUAdmin@123   |
+| Manager     | sgawade@ptexsolutions.com      | Admin@123   |
+| Admin       | hshah@ptexsolutions.com   | HS@123 |
 | Employee    | tqureshi@ptexsolutions.com   | Taha@123    |
 
 > **Security:** the seeded Super Admin and Manager accounts use a publicly known password. On any non-development database, change their passwords immediately (or promote a real user to Super Admin and deactivate the seeded accounts).
@@ -76,8 +76,9 @@ components/
   employee/             TimesheetForm · WeeklyGrid
   manager/              HoursChart and other manager components
 app/admin/
-  masters/              Masters admin screen (Type/Client/Product/Version/Module/Cloud-On-Prem CRUD)
-  activities/            Activities admin screen (build an Activity from Masters, nested Task CRUD)
+  masters/              Masters admin screen (Type/Client/Product/Version/Module/Cloud-On-Prem/Currency/Resource Type/Tasks CRUD)
+  contracts/            Contracts (SOW) list + editor: role rates, task budget grid, lifecycle
+  activities/            Activities admin screen (build an Activity from Masters, pick its Contract, SOW tasks and members)
 lib/
   auth.ts               NextAuth v5 setup
   prisma.ts             Prisma client singleton
@@ -99,7 +100,7 @@ prisma/
 
 ### Employee portal
 - **Dashboard** with weekly progress (Sat–Fri grid), monthly totals, recent entries
-- **New entry** form mirroring the original Excel columns: Date, Client Code, Activity ID, Description, Hours, Type, Beeline Task, Task ID, PO Ref. Auto-derived: Week No., Week Label, Day, Minutes
+- **New entry** form mirroring the original Excel columns: Date, Client Code, Activity ID, Description, Hours, Type, Beeline Task, Task ID, PO Ref. Auto-derived: Week No., Week Label, Day, Minutes. Only Activities you are a member of are listed, and only the SOW tasks assigned to them; PO Ref comes from the Activity's contract
 - **My timesheets** list with edit/submit/delete on drafts only
 - DRAFT/SUBMITTED/APPROVED/REJECTED status badges
 
@@ -112,8 +113,9 @@ prisma/
 - **MIS report viewer** with Excel export matching the original sheet columns
 - **Employee management** — CRUD with role assignment (you can only manage roles below your own)
 - **Access Panel** — per-user permission matrix (view / edit / delete / approve / re-open / finalize per module) for Admins and Managers, highlighting overrides of role defaults; no one can grant a permission they don't hold
-- **Masters** — generic CODE/Description CRUD for the six master types (Type, Client, Product, Version, Module, Cloud/On Prem)
-- **Activities** — build an Activity by picking Client + Type + Product + Version + Module (+ optional Cloud/On Prem); the Activity ID (`CLIENT.MODULE.TYPE.VERSION.SEQ`) is generated automatically and immutable once created. Collapsible per-activity Task CRUD tree
+- **Masters** — generic CODE/Description CRUD for nine master types: Type, Client, Product, Version, Module, Cloud/On Prem, plus Currency, Resource Type (commercial billing roles such as TC/LC/BC/SA, unrelated to login roles) and Tasks (the task catalogue SOWs pick from)
+- **Contracts (SOW)** — the commercial source of truth. A contract has a unique SOW code (also used as the PO reference), a client, one currency, a role rate table and a task budget grid whose role columns follow the rate table. Totals (hours per task, hours and amount per role, contract total) are calculated live in the editor and recalculated on the server with exact decimal maths. Lifecycle: Draft → Active → Closed (re-openable); only drafts can be deleted. Needs the `contracts.*` permissions (Managers and Super Admins by default; grant Admins per user in the Access Panel)
+- **Activities** — build an Activity by picking Client + Type + Product + Version + Module (+ optional Cloud/On Prem); the Activity ID (`CLIENT.MODULE.TYPE.VERSION.SEQ`) is generated automatically and immutable once created. Each Activity executes an active Contract of the same client and delivers a subset of its SOW tasks (one SOW task may be split across several Activities). Members (person + billing role) decide who can log time on it
 - **Settings** — system overview
 
 ### Security
@@ -148,10 +150,11 @@ PO Ref. | Mins | SAT | SUN | MON | TUE | WED | THU | FRI | Day Count
 | `npm run db:reset`       | ⚠️ Wipe the Docker database, recreate schema + demo data |
 | `npm run build`          | Generate Prisma client + production build |
 | `npm run start`          | Run the production build           |
-| `npm test`               | Run unit tests (permissions, activity codes, entry dates) |
+| `npm test`               | Run unit tests (permissions, activity codes, entry dates, master types, contract maths) |
+| `npm run db:backfill-contracts` | Give pre-contract (V1) Activities a Contract, keeping their task history (safe to re-run) |
 | `npm run prisma:push`    | Push schema to MySQL (no migration files) |
 | `npm run prisma:migrate` | Create + apply a migration         |
-| `npm run prisma:seed`    | Seed masters, activities, tasks, users |
+| `npm run prisma:seed`    | Seed masters, contracts, activities, tasks, members, users |
 | `npm run prisma:studio`  | Open Prisma Studio                 |
 
 ---

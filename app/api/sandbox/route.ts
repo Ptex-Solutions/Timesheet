@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { audit, badRequest, parseId, readJsonBody, requirePermission } from "@/lib/api-utils";
 import { sandboxCreateSchema, sandboxEntrySchema } from "@/lib/validations";
@@ -29,29 +30,67 @@ export async function GET(_req: NextRequest) {
   return NextResponse.json({ data });
 }
 
-// POST: clone real timesheets in date range into a new sandbox label
+// POST: clone real timesheets into a new sandbox label.
+// Scope: client + date range (required), optionally narrowed to a contract,
+// an activity and/or a SOW task (TASK master, across activities). Only
+// SUBMITTED/APPROVED rows: drafts are the employee's unsubmitted work.
+// { dryRun: true } returns the match count without creating anything.
 export async function POST(req: NextRequest) {
   const access = await requirePermission("sandbox.edit");
   if (access instanceof NextResponse) return access;
   const { user } = access;
 
-  const body = await req.json();
-  const parsed = sandboxCreateSchema.safeParse(body);
+  const json = await readJsonBody(req);
+  if (json instanceof NextResponse) return json;
+  const parsed = sandboxCreateSchema.safeParse(json.body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
-  const { sandboxLabel, dateFrom, dateTo } = parsed.data;
+  const { sandboxLabel, clientId, dateFrom, dateTo, contractId, activityId, taskMasterId, dryRun } = parsed.data;
 
+  // The optional filters must agree with the client (and each other), so a
+  // stale form can't silently produce an empty or unrelated sandbox.
+  const [client, contract, activity] = await Promise.all([
+    prisma.master.findUnique({ where: { id: clientId } }),
+    contractId ? prisma.contract.findUnique({ where: { id: contractId } }) : null,
+    activityId ? prisma.activity.findUnique({ where: { id: activityId } }) : null,
+  ]);
+  if (!client || client.type !== "CLIENT") return badRequest("Unknown client");
+  if (contractId && (!contract || contract.clientId !== clientId)) {
+    return badRequest("Contract does not belong to the selected client");
+  }
+  if (activityId) {
+    if (!activity || activity.clientId !== clientId) return badRequest("Activity does not belong to the selected client");
+    if (contractId && activity.contractId !== contractId) {
+      return badRequest("Activity does not belong to the selected contract");
+    }
+  }
+  if (taskMasterId) {
+    const m = await prisma.master.findUnique({ where: { id: taskMasterId } });
+    if (!m || m.type !== "TASK") return badRequest("Unknown task");
+  }
+
+  const where: Prisma.TimesheetWhereInput = {
+    date: { gte: new Date(dateFrom), lte: new Date(dateTo) },
+    status: { in: ["SUBMITTED", "APPROVED"] },
+    clientId,
+    ...(activityId ? { activityId } : {}),
+    ...(contractId ? { activity: { contractId } } : {}),
+    ...(taskMasterId ? { task: { contractTask: { taskMasterId } } } : {}),
+  };
+
+  if (dryRun) {
+    const [count, hours] = await Promise.all([
+      prisma.timesheet.count({ where }),
+      prisma.timesheet.aggregate({ where, _sum: { hours: true } }),
+    ]);
+    return NextResponse.json({ data: { count, hours: Number(hours._sum.hours ?? 0) } });
+  }
+
+  if (!sandboxLabel) return badRequest("Sandbox label is required");
   const existing = await prisma.sandboxEntry.findFirst({ where: { sandboxLabel } });
   if (existing) return NextResponse.json({ error: "Sandbox label already exists" }, { status: 409 });
 
-  const source = await prisma.timesheet.findMany({
-    where: {
-      date: { gte: new Date(dateFrom), lte: new Date(dateTo) },
-      // Never clone drafts: they are the employee's unsubmitted work.
-      status: { in: ["SUBMITTED", "APPROVED"] },
-    },
-  });
-
-  if (!source.length) return NextResponse.json({ error: "No timesheets in range" }, { status: 400 });
+  const source = await prisma.timesheet.findMany({ where });
+  if (!source.length) return badRequest("No submitted or approved timesheets match these filters");
 
   const created = await prisma.sandboxEntry.createMany({
     data: source.map((t) => ({
@@ -77,7 +116,7 @@ export async function POST(req: NextRequest) {
     action: "create",
     entity: "Sandbox",
     entityId: sandboxLabel,
-    meta: { rowsCloned: created.count, dateFrom, dateTo },
+    meta: { rowsCloned: created.count, dateFrom, dateTo, clientId, contractId, activityId, taskMasterId },
   });
 
   return NextResponse.json({ data: { sandboxLabel, rows: created.count } }, { status: 201 });

@@ -104,5 +104,18 @@ export const activityListInclude = {
   version: MASTER_BRIEF,
   module: MASTER_BRIEF,
   cloudOnPrem: MASTER_BRIEF,
+  contract: { select: { id: true, code: true, description: true, status: true } },
   tasks: { orderBy: { taskId: "asc" } },
+} satisfies Prisma.ActivityInclude;
+
+// Staff view: adds members (who may log time, and at which billing role).
+export const activityAdminInclude = {
+  ...activityListInclude,
+  members: {
+    include: {
+      user: { select: { id: true, name: true, employeeCode: true, isActive: true } },
+      resourceType: MASTER_BRIEF,
+    },
+    orderBy: { userId: "asc" },
+  },
 } satisfies Prisma.ActivityInclude;

@@ -40,6 +40,29 @@ export const activitySchema = z.object({
   moduleId: z.coerce.number().int().positive(),
   cloudOnPremId: z.coerce.number().int().positive().optional().nullable(),
   isActive: z.boolean().optional(),
+  // Season 2 scope (see lib/activity-scope.ts). Required on create; on update
+  // sending contractId replaces the task subset and members.
+  contractId: z.coerce.number().int().positive().optional(),
+  contractTaskIds: z.array(z.coerce.number().int().positive()).max(300).optional(),
+  // contractTaskId -> active flag, for "Edit Tasks".
+  taskActive: z.record(z.string().regex(/^\d+$/), z.boolean()).optional(),
+  members: z
+    .array(
+      z.object({
+        userId: z.coerce.number().int().positive(),
+        resourceTypeId: z.coerce.number().int().positive(),
+        isActive: z.boolean().optional(),
+      })
+    )
+    .max(500)
+    .optional(),
+});
+
+// Quick member edits from the Activities accordion.
+export const activityMemberSchema = z.object({
+  userId: z.coerce.number().int().positive(),
+  resourceTypeId: z.coerce.number().int().positive().optional(),
+  isActive: z.boolean().optional(),
 });
 
 export const taskSchema = z.object({
@@ -59,12 +82,26 @@ export const userSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-export const sandboxCreateSchema = z.object({
-  sandboxLabel: z.string().min(1).max(120),
-  dateFrom: z.string(),
-  dateTo: z.string(),
-  status: z.enum(["SUBMITTED", "APPROVED"]).default("APPROVED"),
-});
+const isoDate = z.string().refine((s) => !Number.isNaN(Date.parse(s)), "Invalid date");
+
+// New sandbox: which real timesheets to clone. Client is required; contract,
+// activity and task (a TASK master, i.e. the SOW task across activities)
+// narrow it further. `dryRun` only counts the matches.
+export const sandboxCreateSchema = z
+  .object({
+    sandboxLabel: z.string().trim().max(120).optional(), // required unless dryRun
+    clientId: z.coerce.number().int().positive(),
+    dateFrom: isoDate,
+    dateTo: isoDate,
+    contractId: z.coerce.number().int().positive().optional().nullable(),
+    activityId: z.coerce.number().int().positive().optional().nullable(),
+    taskMasterId: z.coerce.number().int().positive().optional().nullable(),
+    dryRun: z.boolean().optional(),
+  })
+  .refine((v) => Date.parse(v.dateFrom) <= Date.parse(v.dateTo), {
+    message: "Date from must be on or before Date to",
+    path: ["dateTo"],
+  });
 
 export const sandboxEntrySchema = z.object({
   sandboxLabel: z.string().min(1),
@@ -111,3 +148,37 @@ export const timesheetBulkDecisionSchema = z
     message: "A reason is required to reject",
     path: ["rejectionNote"],
   });
+
+// Contract / SOW editor payload. Rates and hours are decimal strings (or
+// numbers) with up to 2 decimals; totals are never accepted — the server
+// derives them via lib/contract-calc.ts.
+const decimalInput = z.union([z.string().max(20), z.number()]);
+
+export const contractSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .min(1, "SOW Code is required")
+    .max(80)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._\/-]*$/, "Use letters, digits and . _ / - only (no spaces)")
+    .transform((s) => s.toUpperCase()),
+  description: z.string().trim().max(2000).optional().nullable(),
+  clientId: z.coerce.number().int().positive(),
+  currencyId: z.coerce.number().int().positive(),
+  rates: z
+    .array(z.object({ resourceTypeId: z.coerce.number().int().positive(), ratePerHour: decimalInput }))
+    .max(50),
+  tasks: z
+    .array(
+      z.object({
+        taskMasterId: z.coerce.number().int().positive(),
+        // keyed by resourceTypeId
+        hours: z.record(z.string().regex(/^\d+$/), decimalInput.optional()),
+      })
+    )
+    .max(300),
+});
+
+export const contractStatusActionSchema = z.object({
+  action: z.enum(["activate", "close", "reopen"]),
+});
