@@ -12,9 +12,15 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // Over HTTPS Auth.js names the cookie `__Secure-authjs.session-token`. Behind
+  // the reverse proxy the app itself sees plain http, so trust X-Forwarded-Proto
+  // (as Auth.js did when it set the cookie) or getToken looks for the wrong one.
+  const secureCookie =
+    req.headers.get("x-forwarded-proto") === "https" || req.nextUrl.protocol === "https:";
   const token = await getToken({
     req,
     secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
+    secureCookie,
   });
 
   // Not logged in
