@@ -26,7 +26,7 @@ export const MASTER_TYPES = Object.values(MasterType) as [MasterType, ...MasterT
 
 export const masterSchema = z.object({
   type: z.nativeEnum(MasterType),
-  code: z.string().min(1).max(40).trim().transform((s) => s.toUpperCase()),
+  code: z.string().min(1).max(191).trim().transform((s) => s.toUpperCase()),
   description: z.string().max(200).optional().nullable(),
   isActive: z.boolean().optional(),
 });
@@ -66,7 +66,7 @@ export const activityMemberSchema = z.object({
 });
 
 export const taskSchema = z.object({
-  taskId: z.string().min(1).max(40),
+  taskId: z.string().min(1).max(191),
   taskName: z.string().min(1).max(200),
   poRef: z.string().max(80).optional().nullable(),
   activityId: z.coerce.number().int().positive(),
