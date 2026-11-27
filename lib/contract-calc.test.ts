@@ -44,6 +44,8 @@ test("spec example: per-task, per-role and contract totals", () => {
     ],
   });
   assert.deepEqual(t.taskTotals.map((x) => x.hours), ["30.00", "30.00", "20.00"]);
+  // DEV 10x100 + 20x200 = 5000; TEST 20x100 + 10x200 = 4000; DEPLOY 20x500 = 10000
+  assert.deepEqual(t.taskTotals.map((x) => x.amount), ["5000.00", "4000.00", "10000.00"]);
   assert.deepEqual(t.roleTotals, [
     { resourceTypeId: TC, hours: "30.00", amount: "3000.00" },
     { resourceTypeId: BC, hours: "30.00", amount: "6000.00" },
@@ -110,4 +112,12 @@ test("formatMoney groups thousands and appends the currency code", () => {
   assert.equal(formatMoney("19000.00", "GBP"), "19,000.00 GBP");
   assert.equal(formatMoney("1234567.5"), "1,234,567.5");
   assert.equal(formatMoney("0.00"), "0.00");
+});
+
+test("role hours must be valid 2dp decimals when given", () => {
+  const ok = validateContractGrid({ rates: [{ resourceTypeId: TC, ratePerHour: "1", hours: "10.5" }], tasks: [] });
+  assert.deepEqual(ok, []);
+  assert.deepEqual(validateContractGrid({ rates: [{ resourceTypeId: TC, ratePerHour: "1", hours: null }], tasks: [] }), []);
+  const bad = validateContractGrid({ rates: [{ resourceTypeId: TC, ratePerHour: "1", hours: "-2" }], tasks: [] });
+  assert.equal(bad.length, 1);
 });

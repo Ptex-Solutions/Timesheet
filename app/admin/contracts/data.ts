@@ -25,9 +25,15 @@ export function toFormValue(c: ContractDetail): ContractFormValue {
     description: c.description ?? "",
     clientId: String(c.clientId),
     currencyId: String(c.currencyId),
-    rates: c.rates.map((r) => ({ resourceTypeId: String(r.resourceTypeId), ratePerHour: r.ratePerHour.toFixed(2) })),
+    type: c.type,
+    rates: c.rates.map((r) => ({
+      resourceTypeId: String(r.resourceTypeId),
+      ratePerHour: r.ratePerHour.toFixed(2),
+      hours: r.hours?.toFixed(2) ?? "0",
+    })),
     tasks: c.tasks.map((t) => ({
       taskMasterId: String(t.taskMasterId),
+      isMilestone: t.isMilestone,
       hours: Object.fromEntries(t.budgets.map((b) => [String(b.resourceTypeId), b.hours.toFixed(2)])),
     })),
   };
