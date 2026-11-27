@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { ContractStatusBadge } from "./editor";
+import { CONTRACT_TYPE_LABEL, ContractStatusBadge } from "./editor";
 
 export default async function ContractsPage() {
   const access = await getCurrentAccess();
@@ -50,6 +50,7 @@ export default async function ContractsPage() {
                 <TableRow>
                   <TableHead>Code</TableHead>
                   <TableHead>Description</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Client</TableHead>
                   <TableHead>Currency</TableHead>
                   <TableHead className="text-right">Total Hours</TableHead>
@@ -65,6 +66,7 @@ export default async function ContractsPage() {
                     <TableRow key={c.id}>
                       <TableCell className="font-mono text-xs font-medium text-navy">{c.code}</TableCell>
                       <TableCell className="text-sm text-slate-600 max-w-[280px] truncate">{c.description || "—"}</TableCell>
+                      <TableCell className="text-sm">{CONTRACT_TYPE_LABEL[c.type]}</TableCell>
                       <TableCell className="font-mono text-xs">{c.client.code}</TableCell>
                       <TableCell className="font-mono text-xs">{c.currency.code}</TableCell>
                       <TableCell className="text-right tabular-nums">{t.totalHours}</TableCell>

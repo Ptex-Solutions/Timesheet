@@ -33,15 +33,6 @@ export function Topbar({ title, subtitle }: { title: string; subtitle?: string }
         {subtitle && <p className="text-xs text-slate-500 -mt-0.5">{subtitle}</p>}
       </div>
       <div className="flex items-center gap-3">
-        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-500 text-xs">
-          <Search className="h-3.5 w-3.5" />
-          <span>Search...</span>
-          <kbd className="ml-2 hidden lg:inline text-[10px] px-1.5 py-0.5 rounded border border-slate-300 bg-white">⌘K</kbd>
-        </div>
-        <button className="relative p-2 rounded-lg text-slate-500 hover:bg-slate-100">
-          <Bell className="h-4 w-4" />
-          <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-brand" />
-        </button>
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg pl-1 pr-2 py-1 hover:bg-slate-100 transition">
             <Avatar className="h-8 w-8">
@@ -55,7 +46,7 @@ export function Topbar({ title, subtitle }: { title: string; subtitle?: string }
             </div>
             <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-70">
             <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>

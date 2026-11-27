@@ -27,6 +27,7 @@ export default async function NewContractPage() {
             description: "",
             clientId: "",
             currencyId: gbp ? String(gbp.id) : "",
+            type: "TIMELY",
             rates: [],
             tasks: [],
           }}

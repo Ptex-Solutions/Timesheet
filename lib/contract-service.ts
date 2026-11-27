@@ -95,6 +95,7 @@ export async function saveContract(
         if (input.code !== existing.code) throw new ContractError("SOW Code cannot change once the contract is active");
         if (input.clientId !== existing.clientId) throw new ContractError("Client cannot change once the contract is active");
         if (input.currencyId !== existing.currencyId) throw new ContractError("Currency cannot change once the contract is active");
+        if (input.type !== existing.type) throw new ContractError("Contract type cannot change once the contract is active");
       }
     }
 
@@ -112,6 +113,7 @@ export async function saveContract(
       description: input.description?.trim() || null,
       clientId: input.clientId,
       currencyId: input.currencyId,
+      type: input.type,
     };
 
     let contractId: number;
@@ -143,10 +145,11 @@ export async function saveContract(
     }
     for (const r of input.rates) {
       const ratePerHour = new Prisma.Decimal(String(r.ratePerHour).trim());
+      const hours = new Prisma.Decimal(String(r.hours ?? "").trim() || "0");
       await tx.contractRate.upsert({
         where: { contractId_resourceTypeId: { contractId, resourceTypeId: r.resourceTypeId } },
-        update: { ratePerHour },
-        create: { contractId, resourceTypeId: r.resourceTypeId, ratePerHour },
+        update: { ratePerHour, hours },
+        create: { contractId, resourceTypeId: r.resourceTypeId, ratePerHour, hours },
       });
     }
 
@@ -155,10 +158,11 @@ export async function saveContract(
       await tx.contractTask.deleteMany({ where: { id: { in: removedTaskIds } } });
     }
     for (const [i, t] of input.tasks.entries()) {
+      const isMilestone = input.type === "MILESTONE" && !!t.isMilestone;
       const ct = await tx.contractTask.upsert({
         where: { contractId_taskMasterId: { contractId, taskMasterId: t.taskMasterId } },
-        update: { sortOrder: i },
-        create: { contractId, taskMasterId: t.taskMasterId, sortOrder: i },
+        update: { sortOrder: i, isMilestone },
+        create: { contractId, taskMasterId: t.taskMasterId, sortOrder: i, isMilestone },
       });
       await tx.contractTaskBudget.deleteMany({ where: { contractTaskId: ct.id } });
       const budgets = Object.entries(t.hours)

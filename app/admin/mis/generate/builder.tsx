@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -156,11 +157,11 @@ export function MISBuilder({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>From</Label>
-              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+              <DatePicker value={from} max={to || undefined} onChange={setFrom} />
             </div>
             <div className="space-y-2">
               <Label>To</Label>
-              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+              <DatePicker value={to} min={from || undefined} onChange={setTo} />
             </div>
           </div>
 

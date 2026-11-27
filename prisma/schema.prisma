@@ -98,6 +98,13 @@ enum ContractStatus {
   CLOSED
 }
 
+// How the contract bills. TIMELY = hours x role rate (the original model).
+enum ContractType {
+  TIMELY
+  MILESTONE
+  FIXED
+}
+
 // Contract / SOW: the commercial source of truth for rates, scope and budget.
 // Totals are never stored — lib/contract-calc.ts derives them from rates ×
 // budget hours on read. The code doubles as the PO reference in MIS output.
@@ -110,6 +117,7 @@ model Contract {
   currencyId  Int
   currency    Master         @relation("ContractCurrency", fields: [currencyId], references: [id])
   status      ContractStatus @default(DRAFT)
+  type        ContractType   @default(TIMELY)
   activatedAt DateTime?
   closedAt    DateTime?
   createdById Int
@@ -134,6 +142,8 @@ model ContractRate {
   resourceTypeId Int
   resourceType   Master   @relation("ContractRateResource", fields: [resourceTypeId], references: [id])
   ratePerHour    Decimal  @db.Decimal(12, 2)
+  // Agreed hours for the role (NULL on contracts saved before this column existed).
+  hours          Decimal? @db.Decimal(10, 2)
 
   @@unique([contractId, resourceTypeId])
 }
@@ -148,6 +158,8 @@ model ContractTask {
   taskMasterId Int
   taskMaster   Master   @relation("ContractTaskMaster", fields: [taskMasterId], references: [id])
   sortOrder    Int      @default(0)
+  // MILESTONE contracts: this task is a milestone.
+  isMilestone  Boolean  @default(false)
 
   budgets       ContractTaskBudget[]
   activityTasks Task[]
@@ -297,6 +309,8 @@ model Timesheet {
   comments       TimesheetComment[]
 
   @@index([userId])
+  // "My timesheets" list / per-day cap: always userId + a date range.
+  @@index([userId, date])
   @@index([date])
   @@index([status])
   @@index([clientId])

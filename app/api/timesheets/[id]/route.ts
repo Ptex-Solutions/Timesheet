@@ -4,6 +4,8 @@ import { audit, badRequest, readJsonBody } from "@/lib/api-utils";
 import { getCurrentAccess } from "@/lib/authz";
 import { timesheetUpdateSchema } from "@/lib/validations";
 import { resolveTimesheetRefs } from "@/lib/timesheet-refs";
+import { checkDayCap } from "@/lib/day-cap";
+import { FUTURE_ERROR, WEEKEND_ERROR, isFuture, isWeekend } from "@/lib/entry-date";
 import { dayCount, isoYearWeek, weekLabelForDate, weekdayKey } from "@/lib/utils";
 
 const FIELD_KEYS = ["date", "clientId", "activityId", "taskId", "description", "hours"] as const;
@@ -99,6 +101,8 @@ export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
   const data: any = {};
   if (v.date) {
     const date = new Date(v.date);
+    if (isWeekend(date)) return badRequest(WEEKEND_ERROR);
+    if (isFuture(date)) return badRequest(FUTURE_ERROR);
     data.date = date;
     const wk = isoYearWeek(date);
     data.weekNo = wk.week;
@@ -155,7 +159,18 @@ export async function PUT(req: NextRequest, ctx: { params: { id: string } }) {
         : v.status === "SUBMITTED" && ts.status === "REJECTED"
           ? "resubmit"
           : "update";
-  const updated = await prisma.timesheet.update({ where: { id }, data });
+  // Per-day cap (MAX_DAY_HOURS) when the entry's hours or date change; the
+  // entry's own old hours don't count. Checked and written atomically.
+  const capCheck = v.hours !== undefined || v.date !== undefined;
+  const result = await prisma.$transaction(async (tx) => {
+    if (capCheck) {
+      const capError = await checkDayCap(tx, ts.userId, data.date ?? ts.date, v.hours ?? Number(ts.hours), id);
+      if (capError) return { capError };
+    }
+    return { updated: await tx.timesheet.update({ where: { id }, data }) };
+  });
+  if ("capError" in result) return badRequest(result.capError!);
+  const { updated } = result;
   await audit({ userId: user.id, action, entity: "Timesheet", entityId: id, meta: { changes: Object.keys(data) } });
 
   return NextResponse.json({ data: updated });

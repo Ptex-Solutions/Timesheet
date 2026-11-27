@@ -1,7 +1,8 @@
 "use client";
 
-const DAYS = ["sat", "sun", "mon", "tue", "wed", "thu", "fri"] as const;
-const LABELS = ["SAT", "SUN", "MON", "TUE", "WED", "THU", "FRI"];
+// Weekdays only: no time can be logged on weekends.
+const DAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
+const LABELS = ["MON", "TUE", "WED", "THU", "FRI"];
 
 export function WeeklyGrid({
   rows,
@@ -15,17 +16,16 @@ export function WeeklyGrid({
   const max = Math.max(8, ...totals);
 
   return (
-    <div className="grid grid-cols-7 gap-2">
+    <div className="grid grid-cols-5 gap-2">
       {LABELS.map((label, i) => {
         const v = totals[i];
         const pct = Math.min(100, (v / max) * 100);
-        const isWeekend = i < 2;
         return (
           <div
             key={label}
             className="rounded-lg border border-slate-200 bg-white p-3 flex flex-col items-center justify-between min-h-[110px] shadow-soft"
           >
-            <p className={`text-[10px] font-bold tracking-widest ${isWeekend ? "text-slate-400" : "text-slate-600"}`}>{label}</p>
+            <p className={`text-[10px] font-bold tracking-widest text-slate-600`}>{label}</p>
             <p className="text-2xl font-display font-bold text-navy tabular-nums my-1">{v.toFixed(1)}</p>
             <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
               <div className="h-full bg-brand-gradient" style={{ width: `${pct}%` }} />
@@ -33,7 +33,7 @@ export function WeeklyGrid({
           </div>
         );
       })}
-      <div className="col-span-7 flex items-center justify-between mt-2 px-1">
+      <div className="col-span-5 flex items-center justify-between mt-2 px-1">
         <span className="text-xs text-slate-500">Weekly total</span>
         <span className="text-sm font-bold text-navy tabular-nums">{grand.toFixed(2)} hrs</span>
       </div>
