@@ -4,15 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CalendarDays, Clock, FileText, Loader2, Save, Send } from "lucide-react";
+import { Clock, FileText, Loader2, Save, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { weekLabelForDate, isoYearWeek, weekdayKey } from "@/lib/utils";
+import { FUTURE_ERROR, MAX_DAY_HOURS, WEEKEND_ERROR, isFuture, isWeekend, localTodayIso } from "@/lib/entry-date";
 
 type ClientMaster = { id: number; code: string; description: string | null };
 
@@ -37,7 +39,7 @@ export function TimesheetForm({
   timesheetId?: number;
 }) {
   const router = useRouter();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localTodayIso();
 
   const [date, setDate] = useState(initial?.date?.slice?.(0, 10) ?? today);
   const [clientId, setClientId] = useState<number | null>(initial?.clientId ?? null);
@@ -109,6 +111,18 @@ export function TimesheetForm({
       toast.error("Hours must be greater than 0");
       return;
     }
+    if (isWeekend(new Date(date))) {
+      toast.error(WEEKEND_ERROR);
+      return;
+    }
+    if (isFuture(new Date(date))) {
+      toast.error(FUTURE_ERROR);
+      return;
+    }
+    if (hours > MAX_DAY_HOURS) {
+      toast.error(`You can log at most ${MAX_DAY_HOURS}h per day`);
+      return;
+    }
     if (!description.trim()) {
       toast.error("Please add a description");
       return;
@@ -154,10 +168,7 @@ export function TimesheetForm({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="space-y-2">
               <Label>Date</Label>
-              <div className="relative">
-                <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input type="date" className="pl-9" value={date} onChange={(e) => setDate(e.target.value)} />
-              </div>
+              <DatePicker value={date} max={today} disableWeekends onChange={setDate} />
             </div>
 
             <div className="space-y-2">
@@ -168,7 +179,7 @@ export function TimesheetForm({
                   type="number"
                   step="0.5"
                   min="0"
-                  max="24"
+                  max="10"
                   className="pl-9"
                   value={hours}
                   onChange={(e) => setHours(parseFloat(e.target.value) || 0)}
@@ -234,7 +245,6 @@ export function TimesheetForm({
                   {tasks.map((t) => (
                     <SelectItem key={t.id} value={t.id.toString()}>
                       <span className="font-mono text-xs mr-2">{t.taskId}</span>
-                      {t.taskName}
                     </SelectItem>
                   ))}
                 </SelectContent>

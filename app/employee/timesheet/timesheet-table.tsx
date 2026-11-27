@@ -8,12 +8,14 @@ import { Copy, Loader2, Plus, Save, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Badge } from "@/components/ui/badge";
 import { StatusPill } from "@/components/ui/status-pill";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDate, isoYearWeek, weekLabelForDate } from "@/lib/utils";
-import { FULL_DAY_HOURS, defaultEntryDate, localTodayIso, type DatedHours } from "@/lib/entry-date";
+import { FULL_DAY_HOURS, MAX_DAY_HOURS, FUTURE_ERROR, WEEKEND_ERROR, isFuture, isWeekend, defaultEntryDate, localTodayIso, type DatedHours } from "@/lib/entry-date";
 import { TimesheetActions } from "./actions";
+import { SortHeader } from "./list-controls";
 
 export type TimesheetRow = {
   id: number;
@@ -97,8 +99,11 @@ export function TimesheetTable({
   autoAdd = false,
   dateHints = [],
   emptyText = "No timesheets yet.",
+  sortable = false,
 }: {
   rows: TimesheetRow[];
+  // Column headers sort via URL params (All My Timesheets only).
+  sortable?: boolean;
   autoAdd?: boolean;
   // Entries outside `rows` that should still steer the default date.
   dateHints?: DatedHours[];
@@ -184,9 +189,11 @@ export function TimesheetTable({
 
   function validate(d: Draft): string | null {
     if (!d.date) return "Date is required";
+    if (isWeekend(new Date(d.date))) return WEEKEND_ERROR;
+    if (isFuture(new Date(d.date))) return FUTURE_ERROR;
     if (!d.clientId || !d.activityId || !d.taskId) return "Choose client, activity and task";
     const h = Number(d.hours);
-    if (!Number.isFinite(h) || h <= 0 || h > 24) return "Hours must be between 0 and 24";
+    if (!Number.isFinite(h) || h <= 0 || h > MAX_DAY_HOURS) return `Hours must be more than 0 and at most ${MAX_DAY_HOURS}`;
     if (!d.description.trim()) return "Description is required";
     return null;
   }
@@ -240,7 +247,7 @@ export function TimesheetTable({
   async function saveAll(status: "DRAFT" | "SUBMITTED") {
     setBulkBusy(true);
     let ok = 0;
-    // Sequential on purpose: the server's 24h-per-day cap is checked against
+    // Sequential on purpose: the server's per-day cap (MAX_DAY_HOURS) is checked against
     // rows already saved, so parallel posts for the same date could race it.
     for (const d of drafts) {
       if (await saveDraft(d, status)) ok++;
@@ -307,15 +314,15 @@ export function TimesheetTable({
         <table className="table-clean">
           <thead>
             <tr>
-              <th>Date</th>
+              {sortable ? <SortHeader k="date" label="Date" /> : <th>Date</th>}
               <th>Week</th>
-              <th>Client</th>
-              <th>Activity</th>
-              <th>Task</th>
+              {sortable ? <SortHeader k="client" label="Client" /> : <th>Client</th>}
+              {sortable ? <SortHeader k="activity" label="Activity" /> : <th>Activity</th>}
+              {sortable ? <SortHeader k="task" label="Task" /> : <th>Task</th>}
               <th>Description</th>
-              <th className="text-right">Hours</th>
+              {sortable ? <SortHeader k="hours" label="Hours" className="text-right" /> : <th className="text-right">Hours</th>}
               <th>Type</th>
-              <th>Status</th>
+              {sortable ? <SortHeader k="status" label="Status" /> : <th>Status</th>}
               <th></th>
             </tr>
           </thead>
@@ -445,11 +452,13 @@ function DraftRow({
     <>
       <tr className={draft.error ? "bg-red-50/60" : isEdit ? "bg-sky-50/60" : "bg-amber-50/40"}>
         <td>
-          <Input
-            type="date"
-            className="h-8 w-36 text-xs"
+          <DatePicker
+            size="sm"
+            className="w-40"
             value={draft.date}
-            onChange={(e) => onChange({ date: e.target.value })}
+            max={localTodayIso()}
+            disableWeekends
+            onChange={(date) => onChange({ date })}
             disabled={locked}
           />
         </td>
@@ -523,7 +532,6 @@ function DraftRow({
               {tasks.map((t) => (
                 <SelectItem key={t.id} value={t.id.toString()}>
                   <span className="font-mono text-xs mr-2">{t.taskId}</span>
-                  <span className="text-xs text-slate-500">{t.taskName}</span>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -542,9 +550,9 @@ function DraftRow({
         <td>
           <Input
             type="number"
-            step="0.25"
+            step="0.5"
             min="0"
-            max="24"
+            max="10"
             className="h-8 w-20 text-xs text-right tabular-nums"
             placeholder="0.00"
             value={draft.hours}
