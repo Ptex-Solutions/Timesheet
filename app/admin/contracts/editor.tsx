@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { computeContractTotals, formatMoney, formatScaled, isValidDecimal2, toHundredths } from "@/lib/contract-calc";
 import { cn } from "@/lib/utils";
+import { CONTRACT_TYPE_LABEL, type ContractType } from "./contract-type";
 
 export type MasterOpt = { id: number; code: string; description: string | null; isActive: boolean };
 export type ContractMasters = {
@@ -34,13 +35,6 @@ export type ContractMasters = {
   TASK: MasterOpt[];
 };
 export type ContractStatus = "DRAFT" | "ACTIVE" | "CLOSED";
-export type ContractType = "TIMELY" | "MILESTONE" | "FIXED";
-
-export const CONTRACT_TYPE_LABEL: Record<ContractType, string> = {
-  TIMELY: "Timely",
-  MILESTONE: "Milestone",
-  FIXED: "Fixed",
-};
 
 export type ContractFormValue = {
   id?: number;
