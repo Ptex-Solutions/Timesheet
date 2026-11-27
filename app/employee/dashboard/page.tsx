@@ -114,7 +114,7 @@ export default async function EmployeeDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
           <Card className="lg:col-span-2">
             <CardHeader>
-              <CardTitle>This Week (Sat–Fri)</CardTitle>
+              <CardTitle>This Week (Mon–Fri)</CardTitle>
               <CardDescription>Daily breakdown · {weekTotal.toFixed(2)}h of {target}h target</CardDescription>
             </CardHeader>
             <CardContent>

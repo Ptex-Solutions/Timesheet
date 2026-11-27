@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { MasterType } from "@prisma/client";
 import { ROLES } from "@/lib/permissions";
+import { MAX_DAY_HOURS } from "@/lib/entry-date";
 
 export const loginSchema = z.object({
   email: z.string().email(),
@@ -13,7 +14,7 @@ export const timesheetCreateSchema = z.object({
   activityId: z.coerce.number().int().positive(),
   taskId: z.coerce.number().int().positive(),
   description: z.string().min(1, "Description required").max(2000),
-  hours: z.coerce.number().min(0).max(24),
+  hours: z.coerce.number().min(0).max(MAX_DAY_HOURS, `Hours cannot exceed ${MAX_DAY_HOURS} per day`),
   status: z.enum(["DRAFT", "SUBMITTED"]).default("DRAFT"),
 });
 
@@ -165,8 +166,17 @@ export const contractSchema = z.object({
   description: z.string().trim().max(2000).optional().nullable(),
   clientId: z.coerce.number().int().positive(),
   currencyId: z.coerce.number().int().positive(),
+  // Omitted by older callers (and the seed) = TIMELY, the original behaviour.
+  type: z.enum(["TIMELY", "MILESTONE", "FIXED"]).default("TIMELY"),
   rates: z
-    .array(z.object({ resourceTypeId: z.coerce.number().int().positive(), ratePerHour: decimalInput }))
+    .array(
+      z.object({
+        resourceTypeId: z.coerce.number().int().positive(),
+        ratePerHour: decimalInput,
+        // Agreed hours for the role (blank = 0).
+        hours: decimalInput.optional().nullable(),
+      })
+    )
     .max(50),
   tasks: z
     .array(
@@ -174,6 +184,8 @@ export const contractSchema = z.object({
         taskMasterId: z.coerce.number().int().positive(),
         // keyed by resourceTypeId
         hours: z.record(z.string().regex(/^\d+$/), decimalInput.optional()),
+        // Only kept for MILESTONE contracts.
+        isMilestone: z.boolean().optional(),
       })
     )
     .max(300),

@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -415,11 +416,11 @@ function EntryDialog({
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Date</Label>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <DatePicker value={date} onChange={setDate} />
           </div>
           <div className="space-y-2">
             <Label>Hours</Label>
-            <Input type="number" step="0.25" min="0" max="24" value={hours} onChange={(e) => setHours(parseFloat(e.target.value) || 0)} />
+            <Input type="number" step="0.5" min="0" max="10" value={hours} onChange={(e) => setHours(parseFloat(e.target.value) || 0)} />
           </div>
 
           <div className="space-y-2">
@@ -565,11 +566,11 @@ function FinalizeDialog({ label, onClose }: { label: string; onClose: () => void
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Period from</Label>
-              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+              <DatePicker value={from} max={to || undefined} onChange={setFrom} />
             </div>
             <div className="space-y-2">
               <Label>Period to</Label>
-              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+              <DatePicker value={to} min={from || undefined} onChange={setTo} />
             </div>
           </div>
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700 flex gap-2">

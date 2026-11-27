@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { defaultEntryDate, localTodayIso, nextDayIso } from "./entry-date";
+import { dayCapError, defaultEntryDate, isWeekend, localTodayIso, nextDayIso } from "./entry-date";
 
 const TODAY = "2026-10-01";
 
@@ -58,4 +58,24 @@ test("next day crosses month and year boundaries", () => {
 
 test("localTodayIso uses the local calendar date", () => {
   assert.equal(localTodayIso(new Date(2026, 8, 28, 1, 30)), "2026-09-28");
+});
+
+test("dayCapError allows up to MAX_DAY_HOURS per day and explains the rest", () => {
+  assert.equal(dayCapError(0, 10), null);
+  assert.equal(dayCapError(9.5, 0.5), null);
+  assert.equal(dayCapError(0.1 + 0.2, 9.7), null); // float sum 10.000000000000002
+  assert.match(dayCapError(0, 10.5)!, /at most 10h/);
+  assert.match(dayCapError(7.5, 3)!, /at most 2\.5h/);
+  assert.match(dayCapError(10, 0.5)!, /already logged 10h/);
+});
+
+test("weekends are blocked and the default date skips them", () => {
+  assert.equal(isWeekend(new Date("2026-11-28")), true); // Saturday
+  assert.equal(isWeekend(new Date("2026-11-29")), true); // Sunday
+  assert.equal(isWeekend(new Date("2026-11-30")), false); // Monday
+  assert.equal(isWeekend(new Date("2026-11-27")), false); // Friday
+  // Friday full → Monday, not Saturday.
+  assert.equal(defaultEntryDate([{ date: "2026-11-27", hours: 8 }], "2026-11-30"), "2026-11-30");
+  // Never in the future: Sunday with nothing logged → Friday.
+  assert.equal(defaultEntryDate([], "2026-11-29"), "2026-11-27");
 });

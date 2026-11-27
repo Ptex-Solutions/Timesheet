@@ -37,15 +37,15 @@ export function formatScaled(value: bigint, scale: 2 | 4): string {
 
 export type ContractCalcInput = {
   // One entry per role in the Role Rates table.
-  rates: { resourceTypeId: number; ratePerHour: DecimalInput }[];
+  rates: { resourceTypeId: number; ratePerHour: DecimalInput; hours?: DecimalInput | null }[];
   // One entry per SOW task row; hours keyed by resourceTypeId. Missing roles
   // count as 0; roles not in `rates` are an error (see validateContractGrid).
   tasks: { taskMasterId: number; hours: Record<number, DecimalInput | undefined> }[];
 };
 
 export type ContractTotals = {
-  // Per task row, in input order.
-  taskTotals: { taskMasterId: number; hours: string }[];
+  // Per task row, in input order. amount = Σ role hours × role rate.
+  taskTotals: { taskMasterId: number; hours: string; amount: string }[];
   // Per role, in `rates` order.
   roleTotals: { resourceTypeId: number; hours: string; amount: string }[];
   totalHours: string;
@@ -61,6 +61,9 @@ export function validateContractGrid(input: ContractCalcInput): string[] {
     roleIds.add(r.resourceTypeId);
     if (!isValidDecimal2(r.ratePerHour)) {
       errors.push(`Rate for role ${r.resourceTypeId} must be a non-negative number with up to 2 decimals`);
+    }
+    if (r.hours !== undefined && r.hours !== null && r.hours !== "" && !isValidDecimal2(r.hours)) {
+      errors.push(`Hours for role ${r.resourceTypeId} must be a non-negative number with up to 2 decimals`);
     }
   }
   const taskIds = new Set<number>();
@@ -88,13 +91,15 @@ export function computeContractTotals(input: ContractCalcInput): ContractTotals 
 
   const taskTotals = input.tasks.map((t) => {
     let sum = zero;
+    let amount4 = zero;
     for (const r of input.rates) {
       const raw = t.hours[r.resourceTypeId];
       const h = raw === undefined || raw === "" ? zero : toHundredths(raw) ?? zero;
       sum += h;
+      amount4 += h * (toHundredths(r.ratePerHour) ?? zero);
       roleHours.set(r.resourceTypeId, roleHours.get(r.resourceTypeId)! + h);
     }
-    return { taskMasterId: t.taskMasterId, hours: formatScaled(sum, 2) };
+    return { taskMasterId: t.taskMasterId, hours: formatScaled(sum, 2), amount: formatScaled(amount4, 4) };
   });
 
   let totalHours = zero;

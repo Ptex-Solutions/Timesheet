@@ -4,6 +4,8 @@ import { audit, badRequest, readJsonBody } from "@/lib/api-utils";
 import { getCurrentAccess } from "@/lib/authz";
 import { timesheetCreateSchema } from "@/lib/validations";
 import { resolveTimesheetRefs } from "@/lib/timesheet-refs";
+import { checkDayCap } from "@/lib/day-cap";
+import { FUTURE_ERROR, WEEKEND_ERROR, isFuture, isWeekend } from "@/lib/entry-date";
 import { dayCount, isoYearWeek, weekLabelForDate, weekdayKey } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
@@ -76,27 +78,23 @@ export async function POST(req: NextRequest) {
   const refs = resolved.refs;
 
   const date = new Date(v.date);
+  if (isWeekend(date)) return badRequest(WEEKEND_ERROR);
+  if (isFuture(date)) return badRequest(FUTURE_ERROR);
   const minutes = Math.round(v.hours * 60);
   const wk = isoYearWeek(date);
   const wkLabel = weekLabelForDate(date);
   const dayKey = weekdayKey(date);
-
-  // Sanity: hours per day per user shouldn't exceed 24
-  const sameDay = await prisma.timesheet.aggregate({
-    where: { userId: user.id, date },
-    _sum: { hours: true },
-  });
-  const newTotal = Number(sameDay._sum.hours ?? 0) + v.hours;
-  if (newTotal > 24) {
-    return NextResponse.json({ error: "Total hours for the day cannot exceed 24" }, { status: 400 });
-  }
 
   const dayHours: Record<string, number> = {
     sat: 0, sun: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0,
   };
   dayHours[dayKey] = v.hours;
 
-  const created = await prisma.timesheet.create({
+  // Per-day cap (MAX_DAY_HOURS), checked and written atomically.
+  const result = await prisma.$transaction(async (tx) => {
+    const capError = await checkDayCap(tx, user.id, date, v.hours);
+    if (capError) return { capError };
+    const created = await tx.timesheet.create({
     data: {
       userId: user.id,
       clientId: refs.clientId,
@@ -120,7 +118,11 @@ export async function POST(req: NextRequest) {
       status: v.status,
       submittedAt: v.status === "SUBMITTED" ? new Date() : null,
     },
+    });
+    return { created };
   });
+  if ("capError" in result) return badRequest(result.capError!);
+  const { created } = result;
 
   await audit({
     userId: user.id,

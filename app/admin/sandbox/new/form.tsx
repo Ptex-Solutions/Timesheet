@@ -6,6 +6,7 @@ import { Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -154,11 +155,11 @@ export function NewSandboxForm({
         </div>
         <div className="space-y-2">
           <Label>Date from</Label>
-          <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          <DatePicker value={from} max={to || undefined} onChange={setFrom} />
         </div>
         <div className="space-y-2">
           <Label>Date to</Label>
-          <Input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
+          <DatePicker value={to} min={from || undefined} onChange={setTo} />
         </div>
       </div>
 
