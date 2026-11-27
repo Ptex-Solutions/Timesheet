@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Filter, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
@@ -88,11 +89,11 @@ export function TimesheetsFilter({
         </div>
         <div>
           <Label className="mb-1 block">From</Label>
-          <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          <DatePicker value={from} max={to || undefined} onChange={setFrom} />
         </div>
         <div>
           <Label className="mb-1 block">To</Label>
-          <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          <DatePicker value={to} min={from || undefined} onChange={setTo} />
         </div>
         <div>
           <Label className="mb-1 block">Staff query</Label>
