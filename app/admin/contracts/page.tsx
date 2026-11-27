@@ -10,7 +10,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { CONTRACT_TYPE_LABEL, ContractStatusBadge } from "./editor";
+import { ContractStatusBadge } from "./editor";
+import { CONTRACT_TYPE_LABEL } from "./contract-type";
 
 export default async function ContractsPage() {
   const access = await getCurrentAccess();
